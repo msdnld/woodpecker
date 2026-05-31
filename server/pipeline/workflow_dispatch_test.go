@@ -74,6 +74,42 @@ steps:
 	assert.Error(t, err)
 }
 
+func TestParseWorkflowInputsListForm(t *testing.T) {
+	// list form with the `select` alias for choice
+	data := []byte(`
+inputs:
+  - name: channel
+    description: OTA channel
+    type: select
+    default: preview
+    options: [preview, production]
+  - name: variant
+    type: select
+    default: dev
+    options: [dev, prod]
+
+steps:
+  - name: x
+    image: alpine
+    commands: [echo hi]
+`)
+	specs, err := ParseWorkflowInputs(data)
+	assert.NoError(t, err)
+	names := make([]string, 0, len(specs))
+	for _, s := range specs {
+		names = append(names, s.Name)
+	}
+	assert.Equal(t, []string{"channel", "variant"}, names)
+	// `select` is normalised to `choice`
+	assert.Equal(t, InputTypeChoice, specs[0].Type)
+	assert.Equal(t, InputTypeChoice, specs[1].Type)
+	assert.Equal(t, []string{"preview", "production"}, specs[0].Options)
+
+	// list item without a name -> error
+	_, err = ParseWorkflowInputs([]byte("inputs:\n  - type: string\n"))
+	assert.Error(t, err)
+}
+
 func TestValidateDispatchInputs(t *testing.T) {
 	specs := []InputSpec{
 		{Name: "environment", Type: InputTypeChoice, Required: true, Default: "staging", Options: []string{"staging", "production"}},

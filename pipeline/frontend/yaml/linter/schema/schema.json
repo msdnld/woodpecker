@@ -56,28 +56,45 @@
   },
   "definitions": {
     "inputs": {
+      "description": "Typed manual workflow_dispatch inputs. Injected as CI_INPUT_<NAME> env vars when the workflow is dispatched manually. Accepts either a map (inputs.<name>) or a list (- name: <name>).",
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/input_spec"
+          }
+        },
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/input_spec"
+          }
+        }
+      ]
+    },
+    "input_spec": {
       "type": "object",
-      "description": "Typed manual workflow_dispatch inputs. Injected as CI_INPUT_<NAME> env vars when the workflow is dispatched manually.",
-      "additionalProperties": {
-        "type": "object",
-        "additionalProperties": false,
-        "properties": {
-          "description": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Input name (required in the list form, ignored in the map form)."
+        },
+        "description": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string",
+          "enum": ["string", "number", "boolean", "choice", "select"]
+        },
+        "required": {
+          "type": "boolean"
+        },
+        "default": {},
+        "options": {
+          "type": "array",
+          "items": {
             "type": "string"
-          },
-          "type": {
-            "type": "string",
-            "enum": ["string", "number", "boolean", "choice"]
-          },
-          "required": {
-            "type": "boolean"
-          },
-          "default": {},
-          "options": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
           }
         }
       }

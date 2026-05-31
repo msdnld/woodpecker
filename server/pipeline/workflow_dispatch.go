@@ -39,6 +39,11 @@ const (
 	InputTypeBoolean = "boolean"
 	InputTypeChoice  = "choice"
 
+	// InputTypeSelect is accepted as an alias for choice (friendlier wording);
+	// it is normalised to choice during parsing so the UI/validation only ever
+	// see one canonical type.
+	InputTypeSelect = "select"
+
 	// DispatchInputEnvPrefix is prepended to every injected input env var so
 	// inputs cannot collide with secrets or existing CI_* variables.
 	DispatchInputEnvPrefix = "CI_INPUT_"
@@ -47,17 +52,22 @@ const (
 // InputSpec mirrors a single GitHub-Actions style workflow_dispatch input
 // declaration parsed from a workflow file's top-level `inputs:` block.
 type InputSpec struct {
-	Name        string   `json:"name"`
-	Description string   `json:"description,omitempty"`
-	Type        string   `json:"type,omitempty"` // string|number|boolean|choice
-	Required    bool     `json:"required,omitempty"`
-	Default     any      `json:"default,omitempty"`
-	Options     []string `json:"options,omitempty"`
+	Name        string   `json:"name"        yaml:"name"`
+	Description string   `json:"description,omitempty" yaml:"description"`
+	Type        string   `json:"type,omitempty"        yaml:"type"` // string|number|boolean|choice
+	Required    bool     `json:"required,omitempty"    yaml:"required"`
+	Default     any      `json:"default,omitempty"     yaml:"default"`
+	Options     []string `json:"options,omitempty"     yaml:"options"`
 }
 
 // ParseWorkflowInputs extracts the ordered `inputs:` declarations from a
-// workflow file. Order is preserved (mirrors GitHub) by walking the YAML
-// mapping node directly. Returns nil when the file declares no inputs.
+// workflow file. Order is preserved (mirrors GitHub). Two shapes are accepted:
+//
+//	inputs:                      inputs:
+//	  channel:           or        - name: channel
+//	    type: choice                 type: choice
+//
+// Returns nil when the file declares no inputs.
 func ParseWorkflowInputs(data []byte) ([]InputSpec, error) {
 	var doc struct {
 		Inputs yaml.Node `yaml:"inputs"`
@@ -65,14 +75,21 @@ func ParseWorkflowInputs(data []byte) ([]InputSpec, error) {
 	if err := yaml.Unmarshal(data, &doc); err != nil {
 		return nil, err
 	}
-	if doc.Inputs.Kind == 0 {
-		return nil, nil
-	}
-	if doc.Inputs.Kind != yaml.MappingNode {
-		return nil, fmt.Errorf("inputs must be a mapping")
-	}
 
-	content := doc.Inputs.Content
+	switch doc.Inputs.Kind {
+	case 0:
+		return nil, nil
+	case yaml.MappingNode:
+		return parseInputsMapping(doc.Inputs.Content)
+	case yaml.SequenceNode:
+		return parseInputsSequence(doc.Inputs.Content)
+	default:
+		return nil, fmt.Errorf("inputs must be a mapping or a list")
+	}
+}
+
+// parseInputsMapping handles the GitHub map form: `inputs.<name>: {...}`.
+func parseInputsMapping(content []*yaml.Node) ([]InputSpec, error) {
 	specs := make([]InputSpec, 0, len(content)/2)
 	for i := 0; i+1 < len(content); i += 2 {
 		name := content[i].Value
@@ -81,15 +98,46 @@ func ParseWorkflowInputs(data []byte) ([]InputSpec, error) {
 			return nil, fmt.Errorf("invalid input %q: %w", name, err)
 		}
 		spec.Name = name
-		if spec.Type == "" {
-			spec.Type = InputTypeString
-		}
-		if spec.Type == InputTypeChoice && len(spec.Options) == 0 {
-			return nil, fmt.Errorf("input %q is a choice but declares no options", name)
+		if err := normalizeInputSpec(&spec); err != nil {
+			return nil, err
 		}
 		specs = append(specs, spec)
 	}
 	return specs, nil
+}
+
+// parseInputsSequence handles the list form: `inputs: - name: <name> ...`.
+func parseInputsSequence(content []*yaml.Node) ([]InputSpec, error) {
+	specs := make([]InputSpec, 0, len(content))
+	for _, item := range content {
+		var spec InputSpec
+		if err := item.Decode(&spec); err != nil {
+			return nil, fmt.Errorf("invalid input: %w", err)
+		}
+		if err := normalizeInputSpec(&spec); err != nil {
+			return nil, err
+		}
+		specs = append(specs, spec)
+	}
+	return specs, nil
+}
+
+// normalizeInputSpec fills defaults, maps the `select` alias to `choice`, and
+// validates the declaration.
+func normalizeInputSpec(spec *InputSpec) error {
+	if spec.Name == "" {
+		return fmt.Errorf("input is missing a name")
+	}
+	if spec.Type == "" {
+		spec.Type = InputTypeString
+	}
+	if spec.Type == InputTypeSelect {
+		spec.Type = InputTypeChoice
+	}
+	if spec.Type == InputTypeChoice && len(spec.Options) == 0 {
+		return fmt.Errorf("input %q is a choice but declares no options", spec.Name)
+	}
+	return nil
 }
 
 // applyDispatchInputs validates the user-submitted inputs against the selected
