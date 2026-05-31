@@ -55,8 +55,7 @@
       "trigger": "Dispatch workflow",
       "title": "Dispatch a workflow",
       "select_workflow": "Workflow",
-      "all_workflows": "All workflows (current behavior)",
-      "no_workflows": "No workflow files found on this branch."
+      "all_workflows": "All workflows (current behavior)"
     },
     "deploy_pipeline": {
       "title": "Trigger a deployment for current pipeline #{pipelineId}",

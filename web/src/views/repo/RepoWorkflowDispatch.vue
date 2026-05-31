@@ -1,7 +1,7 @@
 <!--
   Manual "workflow dispatch" view (GitHub-Actions style): pick a single workflow
-  file and run it. Kept separate from RepoManualPipeline.vue so this fork stays
-  easy to rebase against upstream.
+  file, fill its typed inputs, and run it. Kept separate from
+  RepoManualPipeline.vue so this fork stays easy to rebase against upstream.
 -->
 <template>
   <Panel v-if="!loading">
@@ -19,6 +19,31 @@
       <InputField v-slot="{ id }" :label="$t('repo.workflow_dispatch.select_workflow')">
         <SelectField :id="id" v-model="payload.workflow" :options="workflowOptions" />
       </InputField>
+
+      <!-- typed inputs declared by the selected workflow -->
+      <template v-for="input in selectedInputs" :key="input.name">
+        <InputField :label="inputLabel(input)">
+          <span v-if="input.description" class="text-wp-text-alt-100 mb-2 text-sm">{{ input.description }}</span>
+          <SelectField
+            v-if="input.type === 'choice'"
+            v-model="inputValues[input.name] as string"
+            :options="choiceOptions(input)"
+          />
+          <Checkbox
+            v-else-if="input.type === 'boolean'"
+            :model-value="inputValues[input.name] as boolean"
+            label=""
+            @update:model-value="inputValues[input.name] = $event"
+          />
+          <NumberField
+            v-else-if="input.type === 'number'"
+            :model-value="inputValues[input.name] as number"
+            @update:model-value="inputValues[input.name] = $event"
+          />
+          <TextField v-else v-model="inputValues[input.name] as string" />
+        </InputField>
+      </template>
+
       <InputField v-slot="{ id }" :label="$t('repo.manual_pipeline.variables.title')">
         <span class="text-wp-text-alt-100 mb-2 text-sm">{{ $t('repo.manual_pipeline.variables.desc') }}</span>
         <KeyValueEditor
@@ -40,20 +65,25 @@
 
 <script lang="ts" setup>
 import { useNotification } from '@kyvg/vue3-notification';
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRouter } from 'vue-router';
 
 import Button from '~/components/atomic/Button.vue';
 import Icon from '~/components/atomic/Icon.vue';
+import Checkbox from '~/components/form/Checkbox.vue';
+import type { SelectOption } from '~/components/form/form.types';
 import InputField from '~/components/form/InputField.vue';
 import KeyValueEditor from '~/components/form/KeyValueEditor.vue';
+import NumberField from '~/components/form/NumberField.vue';
 import SelectField from '~/components/form/SelectField.vue';
+import TextField from '~/components/form/TextField.vue';
 import Panel from '~/components/layout/Panel.vue';
 import useApiClient from '~/compositions/useApiClient';
 import { requiredInject } from '~/compositions/useInjectProvide';
 import { usePaginate } from '~/compositions/usePaginate';
 import { useWPTitle } from '~/compositions/useWPTitle';
+import type { WorkflowInput, WorkflowMeta } from '~/lib/api/types';
 
 const apiClient = useApiClient();
 const notifications = useNotification();
@@ -72,26 +102,76 @@ const payload = ref<{ branch: string; workflow: string; variables: Record<string
   variables: {},
 });
 
-const workflowOptions = ref<{ text: string; value: string }[]>([
+const workflows = ref<WorkflowMeta[]>([]);
+const inputValues = ref<Record<string, string | number | boolean>>({});
+
+const workflowOptions = computed<SelectOption[]>(() => [
   { text: i18n.t('repo.workflow_dispatch.all_workflows'), value: '' },
+  ...workflows.value.map((w) => ({ text: w.name, value: w.file })),
 ]);
+
+const selectedInputs = computed<WorkflowInput[]>(
+  () => workflows.value.find((w) => w.file === payload.value.workflow)?.inputs ?? [],
+);
 
 const isVariablesValid = ref(true);
 
-const isFormValid = computed(() => payload.value.branch !== '' && isVariablesValid.value);
+const areInputsValid = computed(() =>
+  selectedInputs.value.every((input) => {
+    if (!input.required || input.type === 'boolean') {
+      return true;
+    }
+    const value = inputValues.value[input.name];
+    if (input.type === 'number') {
+      return value !== '' && !Number.isNaN(value);
+    }
+    return value !== undefined && value !== null && String(value) !== '';
+  }),
+);
+
+const isFormValid = computed(() => payload.value.branch !== '' && isVariablesValid.value && areInputsValid.value);
 
 const loading = ref(true);
 
+function inputLabel(input: WorkflowInput): string {
+  return input.required ? `${input.name} *` : input.name;
+}
+
+function choiceOptions(input: WorkflowInput): SelectOption[] {
+  return (input.options ?? []).map((o) => ({ text: o, value: o }));
+}
+
+function defaultFor(input: WorkflowInput): string | number | boolean {
+  switch (input.type) {
+    case 'boolean':
+      return input.default === true || input.default === 'true';
+    case 'number':
+      return input.default !== undefined && input.default !== null ? Number(input.default) : 0;
+    case 'choice':
+      return String(input.default ?? input.options?.[0] ?? '');
+    default:
+      return input.default !== undefined && input.default !== null ? String(input.default) : '';
+  }
+}
+
+// reset the input form to the selected workflow's declared defaults
+function resetInputs() {
+  const values: Record<string, string | number | boolean> = {};
+  for (const input of selectedInputs.value) {
+    values[input.name] = defaultFor(input);
+  }
+  inputValues.value = values;
+}
+
+watch(() => payload.value.workflow, resetInputs);
+
 async function loadWorkflows() {
-  const workflows = await apiClient.getWorkflows(repo.value.id, payload.value.branch);
-  workflowOptions.value = [
-    { text: i18n.t('repo.workflow_dispatch.all_workflows'), value: '' },
-    ...workflows.map((w) => ({ text: w.name, value: w.file })),
-  ];
+  workflows.value = await apiClient.getWorkflows(repo.value.id, payload.value.branch);
   // reset selection if the previously chosen workflow no longer exists on this branch
-  if (!workflowOptions.value.some((o) => o.value === payload.value.workflow)) {
+  if (!workflows.value.some((w) => w.file === payload.value.workflow)) {
     payload.value.workflow = '';
   }
+  resetInputs();
 }
 
 onMounted(async () => {
@@ -117,6 +197,7 @@ async function triggerWorkflowDispatch() {
     branch: payload.value.branch,
     variables: payload.value.variables,
     workflows: payload.value.workflow ? [payload.value.workflow] : undefined,
+    inputs: selectedInputs.value.length > 0 ? { ...inputValues.value } : undefined,
   });
 
   if (typeof pipeline === 'string') {
