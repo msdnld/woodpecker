@@ -102,6 +102,7 @@ func createTmpPipeline(event model.WebhookEvent, commit *model.Commit, user *mod
 		AdditionalVariables: opts.Variables,
 
 		WorkflowDispatchFilter: opts.Workflows,
+		DispatchInputs:         opts.Inputs,
 
 		Author: user.Login,
 		Email:  user.Email,

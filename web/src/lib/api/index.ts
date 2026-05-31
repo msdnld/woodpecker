@@ -34,6 +34,9 @@ interface PipelineOptions {
   // workflows optionally restricts a manual run to the given workflow file(s)
   // (workflow_dispatch). Omitted/empty means "all workflows matching the event".
   workflows?: string[];
+  // inputs holds typed workflow_dispatch inputs, validated server-side against
+  // the selected workflow's `inputs:` schema and injected as CI_INPUT_* env vars.
+  inputs?: Record<string, unknown>;
 }
 
 interface DeploymentOptions {

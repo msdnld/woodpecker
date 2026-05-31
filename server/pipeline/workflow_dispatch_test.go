@@ -29,6 +29,98 @@ func TestDispatchWorkflowName(t *testing.T) {
 	assert.Equal(t, ".woodpecker", DispatchWorkflowName(".woodpecker.yml"))
 }
 
+func TestParseWorkflowInputs(t *testing.T) {
+	data := []byte(`
+inputs:
+  environment:
+    description: Where to deploy
+    type: choice
+    required: true
+    default: staging
+    options: [staging, production]
+  version:
+    type: string
+    default: latest
+  dry_run:
+    type: boolean
+    default: true
+  plain: {}
+
+steps:
+  - name: deploy
+    image: alpine
+    commands: [echo hi]
+`)
+	specs, err := ParseWorkflowInputs(data)
+	assert.NoError(t, err)
+	// order is preserved
+	names := make([]string, 0, len(specs))
+	for _, s := range specs {
+		names = append(names, s.Name)
+	}
+	assert.Equal(t, []string{"environment", "version", "dry_run", "plain"}, names)
+	assert.Equal(t, InputTypeChoice, specs[0].Type)
+	assert.Equal(t, []string{"staging", "production"}, specs[0].Options)
+	// untyped input defaults to string
+	assert.Equal(t, InputTypeString, specs[3].Type)
+
+	// no inputs block -> nil
+	specs, err = ParseWorkflowInputs([]byte("steps: []\n"))
+	assert.NoError(t, err)
+	assert.Nil(t, specs)
+
+	// choice without options -> error
+	_, err = ParseWorkflowInputs([]byte("inputs:\n  x:\n    type: choice\n"))
+	assert.Error(t, err)
+}
+
+func TestValidateDispatchInputs(t *testing.T) {
+	specs := []InputSpec{
+		{Name: "environment", Type: InputTypeChoice, Required: true, Default: "staging", Options: []string{"staging", "production"}},
+		{Name: "version", Type: InputTypeString, Default: "latest"},
+		{Name: "dry_run", Type: InputTypeBoolean, Default: true},
+		{Name: "count", Type: InputTypeNumber},
+		{Name: "token", Type: InputTypeString, Required: true},
+	}
+
+	t.Run("defaults + coercion", func(t *testing.T) {
+		env, err := validateDispatchInputs(specs, map[string]any{
+			"environment": "production",
+			"dry_run":     false,
+			"count":       3,
+			"token":       "abc",
+		})
+		assert.NoError(t, err)
+		assert.Equal(t, map[string]string{
+			"CI_INPUT_ENVIRONMENT": "production",
+			"CI_INPUT_VERSION":     "latest", // default applied
+			"CI_INPUT_DRY_RUN":     "false",
+			"CI_INPUT_COUNT":       "3",
+			"CI_INPUT_TOKEN":       "abc",
+		}, env)
+	})
+
+	t.Run("missing required without default", func(t *testing.T) {
+		_, err := validateDispatchInputs(specs, map[string]any{"token": ""})
+		assert.ErrorIs(t, err, &ErrBadRequest{})
+	})
+
+	t.Run("invalid choice", func(t *testing.T) {
+		_, err := validateDispatchInputs(specs, map[string]any{"environment": "nope", "token": "x"})
+		assert.ErrorIs(t, err, &ErrBadRequest{})
+	})
+
+	t.Run("non-numeric number", func(t *testing.T) {
+		_, err := validateDispatchInputs(specs, map[string]any{"count": "abc", "token": "x"})
+		assert.ErrorIs(t, err, &ErrBadRequest{})
+	})
+
+	t.Run("unknown input rejected", func(t *testing.T) {
+		_, err := validateDispatchInputs(specs, map[string]any{"token": "x", "bogus": "1"})
+		assert.ErrorIs(t, err, &ErrBadRequest{})
+	})
+}
+
 func TestFilterDispatchWorkflows(t *testing.T) {
 	files := []*forge_types.FileMeta{
 		{Name: ".woodpecker/deploy.yaml"},

@@ -49,9 +49,39 @@
       "items": {
         "type": "string"
       }
+    },
+    "inputs": {
+      "$ref": "#/definitions/inputs"
     }
   },
   "definitions": {
+    "inputs": {
+      "type": "object",
+      "description": "Typed manual workflow_dispatch inputs. Injected as CI_INPUT_<NAME> env vars when the workflow is dispatched manually.",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "description": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": ["string", "number", "boolean", "choice"]
+          },
+          "required": {
+            "type": "boolean"
+          },
+          "default": {},
+          "options": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
     "string_or_string_slice": {
       "oneOf": [
         {

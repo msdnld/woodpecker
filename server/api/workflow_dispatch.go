@@ -36,8 +36,9 @@ import (
 
 // WorkflowMeta describes a workflow file available for manual dispatch.
 type WorkflowMeta struct {
-	Name string `json:"name"` // short selector name (base file name without extension)
-	File string `json:"file"` // full config file name as stored in the forge
+	Name   string               `json:"name"`             // short selector name (base file name without extension)
+	File   string               `json:"file"`             // full config file name as stored in the forge
+	Inputs []pipeline.InputSpec `json:"inputs,omitempty"` // declared workflow_dispatch inputs, in file order
 } //	@name	WorkflowMeta
 
 // ListWorkflows
@@ -107,8 +108,16 @@ func ListWorkflows(c *gin.Context) {
 }
 
 func newWorkflowMeta(cfg *forge_types.FileMeta) *WorkflowMeta {
+	inputs, err := pipeline.ParseWorkflowInputs(cfg.Data)
+	if err != nil {
+		// a malformed inputs block should not hide the workflow from the list;
+		// surface it without inputs so the user can still run it.
+		log.Warn().Err(err).Str("workflow", cfg.Name).Msg("could not parse workflow inputs")
+		inputs = nil
+	}
 	return &WorkflowMeta{
-		Name: pipeline.DispatchWorkflowName(cfg.Name),
-		File: cfg.Name,
+		Name:   pipeline.DispatchWorkflowName(cfg.Name),
+		File:   cfg.Name,
+		Inputs: inputs,
 	}
 }

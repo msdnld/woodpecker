@@ -65,6 +65,10 @@ type Pipeline struct {
 	// file(s) (matched by config file name). Transient: never persisted, set
 	// only for manual workflow_dispatch triggers. See server/pipeline/workflow_dispatch.go.
 	WorkflowDispatchFilter []string `json:"-" xorm:"-"`
+	// DispatchInputs holds the typed inputs submitted for a workflow_dispatch
+	// run, validated against the selected workflow's `inputs:` schema and
+	// injected as CI_INPUT_* env vars. Transient: never persisted.
+	DispatchInputs map[string]any `json:"-" xorm:"-"`
 }
 
 // APIPipeline TODO remove deprecated properties in next major.
@@ -117,6 +121,9 @@ type PipelineOptions struct {
 	// mirroring GitHub's workflow_dispatch. Empty means "all workflows matching
 	// the event" (the original behaviour). Each entry matches a config file name.
 	Workflows []string `json:"workflows,omitempty"`
+	// Inputs holds the typed workflow_dispatch inputs, validated against the
+	// selected workflow's `inputs:` schema and injected as CI_INPUT_* env vars.
+	Inputs map[string]any `json:"inputs,omitempty"`
 } //	@name	PipelineOptions
 
 type CancelInfo struct {
