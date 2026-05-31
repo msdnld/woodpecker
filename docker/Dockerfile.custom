@@ -1,0 +1,73 @@
+# Self-contained build for the workflow-dispatch fork.
+#
+# Unlike the upstream docker/Dockerfile.server.* (which copy a binary produced
+# by goreleaser/CI), this builds the UI and the CGO server binary entirely
+# inside the image, so it works from a clean checkout on any host (incl. macOS).
+#
+# Build with build-and-push.sh, or directly:
+#   docker buildx build --platform linux/amd64 \
+#     -f docker/Dockerfile.custom -t doc.msdci.nl/woodpecker-server:custom .
+
+# --- web ---------------------------------------------------------------------
+FROM docker.io/node:22-slim AS web
+
+RUN corepack enable
+WORKDIR /src/web
+
+# install deps first for better layer caching.
+# --ignore-scripts: the repo intentionally disables esbuild's build script
+# (web/pnpm-workspace.yaml: allowBuilds.esbuild=false); pnpm 11 otherwise exits
+# non-zero just to nudge about the ignored script. esbuild needs no build step
+# (its native binary ships via optional deps), so skipping scripts is safe.
+COPY web/package.json web/pnpm-lock.yaml web/pnpm-workspace.yaml ./
+RUN --mount=type=cache,target=/root/.local/share/pnpm/store \
+    pnpm install --frozen-lockfile --ignore-scripts
+
+COPY web/ ./
+RUN --mount=type=cache,target=/root/.local/share/pnpm/store \
+    pnpm build
+
+# --- server binary -----------------------------------------------------------
+FROM docker.io/golang:1.26 AS build
+
+ARG VERSION=custom
+
+WORKDIR /src
+COPY . .
+# drop in the freshly built UI so it gets embedded (web/web.go //go:embed dist)
+COPY --from=web /src/web/dist ./web/dist
+
+# CGO is required for the sqlite driver (github.com/mattn/go-sqlite3). The build
+# stage runs under the target platform (natively, or emulated by buildx for a
+# foreign --platform), so go build + the platform-native gcc target the right
+# arch without cross-compilation. Do NOT set GOARCH here: forcing a foreign arch
+# would make CGO cross-compile and fail (gcc: unrecognized option '-m64').
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    CGO_ENABLED=1 \
+    go build -ldflags "-X go.woodpecker-ci.org/woodpecker/v3/version.Version=${VERSION}" \
+    -o /out/woodpecker-server go.woodpecker-ci.org/woodpecker/v3/cmd/server
+
+# --- runtime -----------------------------------------------------------------
+FROM docker.io/debian:bookworm-slim
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates \
+    && rm -rf /var/lib/apt/lists/* \
+    && groupadd -g 1000 woodpecker \
+    && useradd -u 1000 -g 1000 -m -d /var/lib/woodpecker woodpecker \
+    && mkdir -p /var/lib/woodpecker
+
+ENV GODEBUG=netdns=go
+# Internal setting do NOT change! Signals that woodpecker is running inside a container
+ENV WOODPECKER_IN_CONTAINER=true
+ENV XDG_CACHE_HOME=/var/lib/woodpecker
+ENV XDG_DATA_HOME=/var/lib/woodpecker
+EXPOSE 8000 9000 80 443
+
+COPY --from=build /out/woodpecker-server /bin/woodpecker-server
+RUN chown -R woodpecker:woodpecker /var/lib/woodpecker
+
+USER woodpecker
+HEALTHCHECK CMD ["/bin/woodpecker-server", "ping"]
+ENTRYPOINT ["/bin/woodpecker-server"]

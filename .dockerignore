@@ -1,0 +1,12 @@
+# keep the build context small; the image rebuilds web/dist itself
+.git
+data
+dist
+build
+**/node_modules
+web/dist
+web/.pnpm-store
+.pnpm-store
+**/*.exe
+coverage.out
+e2e-coverage.out
