@@ -93,6 +93,17 @@ func Create(ctx context.Context, _store store.Store, repo *model.Repo, pipeline 
 		return nil, updatePipelineWithErr(ctx, _forge, _store, pipeline, repo, repoUser, fmt.Errorf("could not load config from forge: %w", configFetchErr))
 	}
 
+	// workflow_dispatch: restrict the run to the manually selected workflow(s).
+	if len(pipeline.WorkflowDispatchFilter) > 0 {
+		forgeYamlConfigs, err = filterDispatchWorkflows(forgeYamlConfigs, pipeline.WorkflowDispatchFilter)
+		if err != nil {
+			if delErr := _store.DeletePipeline(pipeline); delErr != nil {
+				log.Error().Str("repo", repo.FullName).Err(delErr).Msg("failed to delete pipeline with invalid workflow filter")
+			}
+			return nil, err
+		}
+	}
+
 	currentPipeline, pipelineItems, parseErr, err := createPipelineItems(ctx, _forge, _store, pipeline, repoUser, repo, forgeYamlConfigs, nil, false)
 	*pipeline = *currentPipeline
 	if handleParseErrors(pipeline, parseErr) {

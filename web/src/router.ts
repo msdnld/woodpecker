@@ -175,6 +175,12 @@ const routes: RouteRecordRaw[] = [
             component: (): Component => import('~/views/repo/RepoManualPipeline.vue'),
             meta: { authentication: 'required', repoHeader: true },
           },
+          {
+            path: 'dispatch',
+            name: 'repo-workflow-dispatch',
+            component: (): Component => import('~/views/repo/RepoWorkflowDispatch.vue'),
+            meta: { authentication: 'required', repoHeader: true },
+          },
         ],
       },
       {

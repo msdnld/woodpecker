@@ -24,12 +24,14 @@
     </template>
 
     <template #tabActions>
-      <Button
-        v-if="repoPermissions.push && route.name !== 'repo-manual'"
-        :text="$t('repo.manual_pipeline.trigger')"
-        start-icon="manual-pipeline"
-        :to="{ name: 'repo-manual' }"
-      />
+      <template v-if="repoPermissions.push && !isManualRoute">
+        <Button
+          :text="$t('repo.workflow_dispatch.trigger')"
+          start-icon="manual-pipeline"
+          :to="{ name: 'repo-workflow-dispatch' }"
+        />
+        <Button :text="$t('repo.manual_pipeline.trigger')" start-icon="manual-pipeline" :to="{ name: 'repo-manual' }" />
+      </template>
       <Button
         v-else-if="repoPermissions.push"
         :text="$t('repo.manual_pipeline.show_pipelines')"
@@ -89,6 +91,8 @@ const { isAuthenticated } = useAuthentication();
 const route = useRoute();
 const router = useRouter();
 const i18n = useI18n();
+
+const isManualRoute = computed(() => route.name === 'repo-manual' || route.name === 'repo-workflow-dispatch');
 const config = useConfig();
 const forgeStore = useForgeStore();
 const { updateLastAccess } = useRepos();

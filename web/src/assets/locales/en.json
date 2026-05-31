@@ -51,6 +51,13 @@
       "show_pipelines": "Show pipelines",
       "no_manual_workflows": "No matching workflows found. Make sure at least one workflow runs on the manual event."
     },
+    "workflow_dispatch": {
+      "trigger": "Dispatch workflow",
+      "title": "Dispatch a workflow",
+      "select_workflow": "Workflow",
+      "all_workflows": "All workflows (current behavior)",
+      "no_workflows": "No workflow files found on this branch."
+    },
     "deploy_pipeline": {
       "title": "Trigger a deployment for current pipeline #{pipelineId}",
       "enter_target": "Target environment for deployment",

@@ -60,6 +60,11 @@ type Pipeline struct {
 	IsPrerelease         bool                    `json:"is_prerelease,omitempty" xorm:"is_prerelease"`
 	FromFork             bool                    `json:"from_fork,omitempty"     xorm:"from_fork"`
 	Version              string                  `json:"version"                 xorm:"'version'"`
+
+	// WorkflowDispatchFilter restricts a manual run to the selected workflow
+	// file(s) (matched by config file name). Transient: never persisted, set
+	// only for manual workflow_dispatch triggers. See server/pipeline/workflow_dispatch.go.
+	WorkflowDispatchFilter []string `json:"-" xorm:"-"`
 }
 
 // APIPipeline TODO remove deprecated properties in next major.
@@ -108,6 +113,10 @@ func (p Pipeline) IsPullRequest() bool {
 type PipelineOptions struct {
 	Branch    string            `json:"branch"`
 	Variables map[string]string `json:"variables"`
+	// Workflows optionally restricts a manual run to the given workflow file(s),
+	// mirroring GitHub's workflow_dispatch. Empty means "all workflows matching
+	// the event" (the original behaviour). Each entry matches a config file name.
+	Workflows []string `json:"workflows,omitempty"`
 } //	@name	PipelineOptions
 
 type CancelInfo struct {
