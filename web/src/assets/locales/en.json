@@ -52,7 +52,7 @@
       "no_manual_workflows": "No matching workflows found. Make sure at least one workflow runs on the manual event."
     },
     "workflow_dispatch": {
-      "trigger": "Dispatch workflow",
+      "trigger": "Run with Params",
       "title": "Dispatch a workflow",
       "select_workflow": "Workflow",
       "all_workflows": "All workflows (current behavior)"

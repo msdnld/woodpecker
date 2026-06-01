@@ -28,6 +28,7 @@
         <Button
           :text="$t('repo.workflow_dispatch.trigger')"
           start-icon="manual-pipeline"
+          class="mr-2"
           :to="{ name: 'repo-workflow-dispatch' }"
         />
         <Button :text="$t('repo.manual_pipeline.trigger')" start-icon="manual-pipeline" :to="{ name: 'repo-manual' }" />
