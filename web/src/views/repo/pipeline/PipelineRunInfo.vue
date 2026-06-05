@@ -36,6 +36,30 @@
     </Panel>
 
     <Panel
+      v-if="dispatchInputs.length > 0 || extraVariables.length > 0"
+      :title="$t('repo.pipeline.run_info.inputs_title')"
+    >
+      <template v-if="dispatchInputs.length > 0">
+        <h4 class="text-wp-text-100 mb-2 font-bold">{{ $t('repo.pipeline.run_info.inputs') }}</h4>
+        <dl class="grid grid-cols-[max-content_1fr] gap-x-4 gap-y-2 text-sm">
+          <RunInfoRow v-for="[name, value] in dispatchInputs" :key="name" :label="name">
+            <span class="font-mono break-all">{{ value }}</span>
+          </RunInfoRow>
+        </dl>
+      </template>
+      <template v-if="extraVariables.length > 0">
+        <h4 class="text-wp-text-100 mb-2 font-bold" :class="{ 'mt-4': dispatchInputs.length > 0 }">
+          {{ $t('repo.pipeline.run_info.variables') }}
+        </h4>
+        <dl class="grid grid-cols-[max-content_1fr] gap-x-4 gap-y-2 text-sm">
+          <RunInfoRow v-for="[name, value] in extraVariables" :key="name" :label="name">
+            <span class="font-mono break-all">{{ value }}</span>
+          </RunInfoRow>
+        </dl>
+      </template>
+    </Panel>
+
+    <Panel
       v-for="workflow in pipeline.workflows ?? []"
       :key="workflow.id"
       :title="$t('repo.pipeline.run_info.workflow_title', { name: workflow.name })"
@@ -101,6 +125,20 @@ const agents = ref<Record<number, Agent>>({});
 function formatDate(timestamp: number): string {
   return toLocaleString(new Date(timestamp * 1000));
 }
+
+// Typed workflow_dispatch inputs are injected as CI_INPUT_<NAME> variables;
+// show them as the original input name, separate from plain run variables.
+const INPUT_PREFIX = 'CI_INPUT_';
+
+const dispatchInputs = computed(() =>
+  Object.entries(pipeline.value.variables ?? {})
+    .filter(([key]) => key.startsWith(INPUT_PREFIX))
+    .map(([key, value]) => [key.slice(INPUT_PREFIX.length).toLowerCase(), value] as [string, string]),
+);
+
+const extraVariables = computed(() =>
+  Object.entries(pipeline.value.variables ?? {}).filter(([key]) => !key.startsWith(INPUT_PREFIX)),
+);
 
 function statusLabel(status: PipelineStatus): string {
   switch (status) {

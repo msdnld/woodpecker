@@ -94,6 +94,10 @@ export interface Pipeline {
 
   changed_files?: string[];
 
+  // Additional variables passed to the run. For manual workflow_dispatch runs
+  // this includes the typed inputs, injected as CI_INPUT_<NAME> keys.
+  variables?: Record<string, string>;
+
   cancel_info: CancelInfo;
 
   version: string;
