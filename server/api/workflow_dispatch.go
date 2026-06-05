@@ -25,11 +25,14 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/rs/zerolog/log"
 
+	"go.woodpecker-ci.org/woodpecker/v3/pipeline/frontend/metadata"
+	"go.woodpecker-ci.org/woodpecker/v3/pipeline/frontend/yaml"
 	"go.woodpecker-ci.org/woodpecker/v3/server"
 	"go.woodpecker-ci.org/woodpecker/v3/server/forge"
 	forge_types "go.woodpecker-ci.org/woodpecker/v3/server/forge/types"
 	"go.woodpecker-ci.org/woodpecker/v3/server/model"
 	"go.woodpecker-ci.org/woodpecker/v3/server/pipeline"
+	server_metadata "go.woodpecker-ci.org/woodpecker/v3/server/pipeline/metadata"
 	"go.woodpecker-ci.org/woodpecker/v3/server/router/middleware/session"
 	"go.woodpecker-ci.org/woodpecker/v3/server/store"
 )
@@ -99,12 +102,40 @@ func ListWorkflows(c *gin.Context) {
 		return
 	}
 
+	// Only list workflows that would actually run on a manual dispatch, i.e.
+	// whose `when` matches the manual event (workflows with no event filter
+	// match too). This hides push/tag/cron-only workflows that cannot be
+	// dispatched manually and would otherwise error if selected.
+	dispatchMeta := server_metadata.NewServerMetadata(_forge, repo, tmpPipeline, nil, server.Config.Server.Host).GetWorkflowMetadata(nil)
+
 	workflows := make([]*WorkflowMeta, 0, len(configs))
 	for _, cfg := range configs {
+		if !workflowRunsOnManual(cfg, dispatchMeta) {
+			continue
+		}
 		workflows = append(workflows, newWorkflowMeta(cfg))
 	}
 
 	c.JSON(http.StatusOK, workflows)
+}
+
+// workflowRunsOnManual reports whether a workflow file would be included in a
+// manual dispatch run, evaluating its top-level `when` against manual-event
+// metadata exactly like the compiler does. It fails open: a file that cannot be
+// parsed or evaluated is kept in the list so a real workflow is never hidden by
+// a parsing quirk on our side.
+func workflowRunsOnManual(cfg *forge_types.FileMeta, dispatchMeta metadata.Metadata) bool {
+	workflow, err := yaml.ParseBytes(cfg.Data)
+	if err != nil {
+		log.Warn().Err(err).Str("workflow", cfg.Name).Msg("could not parse workflow for manual dispatch filter")
+		return true
+	}
+	match, err := workflow.When.Match(dispatchMeta, true, nil)
+	if err != nil {
+		log.Warn().Err(err).Str("workflow", cfg.Name).Msg("could not evaluate workflow when for manual dispatch filter")
+		return true
+	}
+	return match
 }
 
 func newWorkflowMeta(cfg *forge_types.FileMeta) *WorkflowMeta {
