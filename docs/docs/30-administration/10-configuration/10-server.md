@@ -400,7 +400,26 @@ woodpecker_waiting_steps 0
 # HELP woodpecker_worker_count Total number of workers.
 # TYPE woodpecker_worker_count gauge
 woodpecker_worker_count 4
+# HELP woodpecker_step_failures_total Total number of pipeline step failures.
+# TYPE woodpecker_step_failures_total counter
+woodpecker_step_failures_total{repo="woodpecker-ci/woodpecker",step="deploy",workflow="woodpecker"} 1
+# HELP woodpecker_step_duration_seconds Step duration in seconds.
+# TYPE woodpecker_step_duration_seconds histogram
+woodpecker_step_duration_seconds_bucket{repo="woodpecker-ci/woodpecker",step="deploy",workflow="woodpecker",le="1"} 0
+woodpecker_step_duration_seconds_bucket{repo="woodpecker-ci/woodpecker",step="deploy",workflow="woodpecker",le="5"} 0
+woodpecker_step_duration_seconds_bucket{repo="woodpecker-ci/woodpecker",step="deploy",workflow="woodpecker",le="10"} 0
+woodpecker_step_duration_seconds_bucket{repo="woodpecker-ci/woodpecker",step="deploy",workflow="woodpecker",le="30"} 1
+woodpecker_step_duration_seconds_bucket{repo="woodpecker-ci/woodpecker",step="deploy",workflow="woodpecker",le="60"} 1
+woodpecker_step_duration_seconds_bucket{repo="woodpecker-ci/woodpecker",step="deploy",workflow="woodpecker",le="300"} 1
+woodpecker_step_duration_seconds_bucket{repo="woodpecker-ci/woodpecker",step="deploy",workflow="woodpecker",le="600"} 1
+woodpecker_step_duration_seconds_bucket{repo="woodpecker-ci/woodpecker",step="deploy",workflow="woodpecker",le="1800"} 1
+woodpecker_step_duration_seconds_bucket{repo="woodpecker-ci/woodpecker",step="deploy",workflow="woodpecker",le="3600"} 1
+woodpecker_step_duration_seconds_bucket{repo="woodpecker-ci/woodpecker",step="deploy",workflow="woodpecker",le="+Inf"} 1
+woodpecker_step_duration_seconds_sum{repo="woodpecker-ci/woodpecker",step="deploy",workflow="woodpecker"} 12
+woodpecker_step_duration_seconds_count{repo="woodpecker-ci/woodpecker",step="deploy",workflow="woodpecker"} 1
 ```
+
+Step-level metrics are exported as long as `WOODPECKER_STEP_LEVEL_METRICS` is not disabled.
 
 #### Example response structure
 
@@ -558,7 +577,7 @@ Examples:
 - Name: `WOODPECKER_SERVER_ADDR`
 - Default: `:8000`
 
-Configures the HTTP listener port.
+Configures the HTTP listener, supports unix socket via unix:// prefix".
 
 ---
 
@@ -624,7 +643,8 @@ Example: `WOODPECKER_CUSTOM_JS_FILE=/usr/local/www/woodpecker.js`
 - Name: `WOODPECKER_GRPC_ADDR`
 - Default: `:9000`
 
-Configures the gRPC listener port.
+Configures the gRPC listener. Use `localhost:9000` or any IP address to bind it to a specific interface.
+If you want an unix socket use `unix://` prefix, for example `unix:///run/woodpecker-grcp.sock`.
 
 ---
 
@@ -654,6 +674,15 @@ Read the value for `WOODPECKER_GRPC_SECRET` from the specified filepath.
 Configures an unprotected metrics endpoint. An empty value disables the metrics endpoint completely.
 
 Example: `:9001`
+
+---
+
+### STEP_LEVEL_METRICS
+
+- Name: `WOODPECKER_STEP_LEVEL_METRICS`
+- Default: `true`
+
+Enable step-level metrics, including failed step counters and step duration histograms.
 
 ---
 
