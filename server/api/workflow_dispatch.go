@@ -130,7 +130,15 @@ func workflowRunsOnManual(cfg *forge_types.FileMeta, dispatchMeta metadata.Metad
 		log.Warn().Err(err).Str("workflow", cfg.Name).Msg("could not parse workflow for manual dispatch filter")
 		return true
 	}
-	match, err := workflow.When.Match(dispatchMeta, true, nil)
+	// `evaluate` clauses may reference CI_INPUT_* variables that only exist
+	// once the user submits the dispatch form; with no inputs bound they would
+	// evaluate to false and wrongly hide the workflow. Listability is decided
+	// by the event filter alone — `evaluate` gates at run time.
+	when := workflow.When
+	for i := range when.Constraints {
+		when.Constraints[i].Evaluate = ""
+	}
+	match, err := when.Match(dispatchMeta, true, nil)
 	if err != nil {
 		log.Warn().Err(err).Str("workflow", cfg.Name).Msg("could not evaluate workflow when for manual dispatch filter")
 		return true
