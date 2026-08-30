@@ -134,6 +134,7 @@ func (p Pipeline) IsPullRequest() bool {
 }
 
 type PipelineOptions struct {
+	Message   string            `json:"message"`
 	Branch    string            `json:"branch"`
 	Variables map[string]string `json:"variables"`
 	// Workflows optionally restricts a manual run to the given workflow file(s),

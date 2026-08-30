@@ -41,6 +41,7 @@ import (
 type PipelineBuilder struct {
 	Yamls               []*YamlFile
 	Envs                map[string]string
+	AdditionalEnvs      map[string]string
 	DefaultLabels       map[string]string
 	RepoTrusted         *metadata.TrustedConfiguration
 	TrustedClonePlugins []string
@@ -99,6 +100,15 @@ func (b *PipelineBuilder) Build() (items []*Item, errorsAndWarnings error) {
 func (b *PipelineBuilder) genItemForWorkflow(workflow *Workflow, axis matrix.Axis, data string) (item *Item, errorsAndWarnings error) {
 	workflowMetadata := b.GetWorkflowMetadata(workflow)
 	environ := b.environmentVariables(workflowMetadata, axis)
+
+	// add additional environment variables for substituting
+	for k, v := range b.AdditionalEnvs {
+		if _, exists := environ[k]; exists {
+			// don't override existing values
+			continue
+		}
+		environ[k] = v
+	}
 
 	// add global environment variables for substituting
 	for k, v := range b.Envs {
@@ -218,7 +228,8 @@ func (b *PipelineBuilder) toInternalRepresentation(parsed *yaml_types.Workflow, 
 	options := []compiler.Option{}
 	options = append(
 		options,
-		compiler.WithAxisEnviron(axis),
+		compiler.WithNonPluginEnviron(axis),
+		compiler.WithNonPluginEnviron(b.AdditionalEnvs),
 		compiler.WithEnviron(b.Envs),
 		compiler.WithEscalated(b.PrivilegedPlugins...),
 		compiler.WithTrustedClonePlugins(b.TrustedClonePlugins),
