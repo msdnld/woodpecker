@@ -191,6 +191,11 @@
       "verified": true
     },
     {
+      "name": "Mastodon Profile",
+      "docs": "https://codeberg.org/woodpecker-plugins/mastodon-profile/raw/branch/main/docs.md",
+      "verified": true
+    },
+    {
       "name": "Bluesky Post",
       "docs": "https://codeberg.org/woodpecker-plugins/bluesky-post/raw/branch/main/docs.md",
       "verified": true
@@ -338,6 +343,11 @@
     {
       "name": "NestGuard",
       "docs": "https://codeberg.org/woodpecker-community/nestguard/raw/branch/main/docs.md",
+      "verified": false
+    },
+    {
+      "name": "Asyntai AI Chatbot Docs Sync",
+      "docs": "https://raw.githubusercontent.com/asyntai/woodpecker-ai-docs-sync/main/docs.md",
       "verified": false
     }
   ]
