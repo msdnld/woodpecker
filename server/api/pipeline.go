@@ -21,8 +21,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"mime"
 	"net/http"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -116,7 +118,24 @@ func createTmpPipeline(event model.WebhookEvent, commit *model.Commit, user *mod
 		pl.Message = "MANUAL: " + opts.Message + " @ " + opts.Branch
 	}
 
+	if params := formatManualParams(opts); params != "" {
+		pl.Message += " (" + params + ")"
+	}
+
 	return pl
+}
+
+// formatManualParams renders the dispatch inputs and variables of a manual run
+// as a stable, comma separated "key=value" list for the pipeline message.
+func formatManualParams(opts *model.PipelineOptions) string {
+	parts := make([]string, 0, len(opts.Inputs)+len(opts.Variables))
+	for _, key := range slices.Sorted(maps.Keys(opts.Inputs)) {
+		parts = append(parts, fmt.Sprintf("%s=%v", key, opts.Inputs[key]))
+	}
+	for _, key := range slices.Sorted(maps.Keys(opts.Variables)) {
+		parts = append(parts, key+"="+opts.Variables[key])
+	}
+	return strings.Join(parts, ", ")
 }
 
 // GetPipelines
