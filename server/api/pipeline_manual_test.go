@@ -31,21 +31,29 @@ func TestCreateTmpPipelineMessage(t *testing.T) {
 		assert.Equal(t, "MANUAL PIPELINE @ main", pl.Message)
 	})
 
-	t.Run("inputs and variables sorted", func(t *testing.T) {
+	t.Run("selected workflow names the run", func(t *testing.T) {
 		pl := createTmpPipeline(model.EventManual, commit, user, &model.PipelineOptions{
 			Branch:    "main",
-			Inputs:    map[string]any{"version": "1.2", "dry_run": true},
-			Variables: map[string]string{"REGION": "eu"},
+			Workflows: []string{".woodpecker/deploy.yaml", "lint"},
+			Inputs:    map[string]any{"version": "1.2"},
 		})
-		assert.Equal(t, "MANUAL PIPELINE @ main (dry_run=true, version=1.2, REGION=eu)", pl.Message)
+		assert.Equal(t, "deploy, lint", pl.Message)
 	})
 
 	t.Run("custom message", func(t *testing.T) {
 		pl := createTmpPipeline(model.EventManual, commit, user, &model.PipelineOptions{
-			Branch:    "main",
-			Message:   "deploy",
-			Variables: map[string]string{"env": "prod"},
+			Branch:  "main",
+			Message: "hotfix",
 		})
-		assert.Equal(t, "MANUAL: deploy @ main (env=prod)", pl.Message)
+		assert.Equal(t, "MANUAL: hotfix @ main", pl.Message)
+	})
+
+	t.Run("workflow with custom message", func(t *testing.T) {
+		pl := createTmpPipeline(model.EventManual, commit, user, &model.PipelineOptions{
+			Branch:    "main",
+			Message:   "hotfix",
+			Workflows: []string{"deploy"},
+		})
+		assert.Equal(t, "deploy: hotfix", pl.Message)
 	})
 }

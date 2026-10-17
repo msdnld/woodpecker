@@ -21,10 +21,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"maps"
 	"mime"
 	"net/http"
-	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -118,24 +116,25 @@ func createTmpPipeline(event model.WebhookEvent, commit *model.Commit, user *mod
 		pl.Message = "MANUAL: " + opts.Message + " @ " + opts.Branch
 	}
 
-	if params := formatManualParams(opts); params != "" {
-		pl.Message += " (" + params + ")"
+	if len(opts.Workflows) > 0 {
+		pl.Message = manualPipelineTitle(opts)
 	}
 
 	return pl
 }
 
-// formatManualParams renders the dispatch inputs and variables of a manual run
-// as a stable, comma separated "key=value" list for the pipeline message.
-func formatManualParams(opts *model.PipelineOptions) string {
-	parts := make([]string, 0, len(opts.Inputs)+len(opts.Variables))
-	for _, key := range slices.Sorted(maps.Keys(opts.Inputs)) {
-		parts = append(parts, fmt.Sprintf("%s=%v", key, opts.Inputs[key]))
+// manualPipelineTitle names a workflow_dispatch run after the selected
+// workflow(s), optionally followed by the user supplied message.
+func manualPipelineTitle(opts *model.PipelineOptions) string {
+	names := make([]string, 0, len(opts.Workflows))
+	for _, w := range opts.Workflows {
+		names = append(names, pipeline.DispatchWorkflowName(w))
 	}
-	for _, key := range slices.Sorted(maps.Keys(opts.Variables)) {
-		parts = append(parts, key+"="+opts.Variables[key])
+	title := strings.Join(names, ", ")
+	if opts.Message != "" {
+		title += ": " + opts.Message
 	}
-	return strings.Join(parts, ", ")
+	return title
 }
 
 // GetPipelines

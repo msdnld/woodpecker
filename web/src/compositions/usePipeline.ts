@@ -112,6 +112,25 @@ export default (pipeline: Ref<Pipeline | undefined>) => {
     return pipeline.value?.ref;
   });
 
+  // Typed workflow_dispatch inputs are stored as CI_INPUT_<NAME> variables;
+  // list them under their input name, before any plain run variables.
+  const INPUT_PREFIX = 'CI_INPUT_';
+  const manualParams = computed(() => {
+    if (pipeline.value?.event !== 'manual') {
+      return '';
+    }
+    const entries = Object.entries(pipeline.value.variables ?? {});
+    const inputs = entries
+      .filter(([key]) => key.startsWith(INPUT_PREFIX))
+      .map(([key, value]) => `${key.slice(INPUT_PREFIX.length).toLowerCase()}=${value}`)
+      .sort();
+    const variables = entries
+      .filter(([key]) => !key.startsWith(INPUT_PREFIX))
+      .map(([key, value]) => `${key}=${value}`)
+      .sort();
+    return [...inputs, ...variables].join(', ');
+  });
+
   const created = computed(() => {
     if (!pipeline.value) {
       return undefined;
@@ -132,5 +151,6 @@ export default (pipeline: Ref<Pipeline | undefined>) => {
     prTitleWithDescription,
     prettyRef,
     created,
+    manualParams,
   };
 };

@@ -34,6 +34,13 @@
           :content="shortMessage"
           inline
         />
+        <span
+          v-if="manualParams"
+          class="text-wp-text-alt-100 ml-1 overflow-hidden text-xs text-ellipsis whitespace-nowrap"
+          :title="manualParams"
+        >
+          {{ `(${manualParams})` }}
+        </span>
       </div>
 
       <div
@@ -99,7 +106,8 @@ const { t } = useI18n();
 const { durationAsNumber } = useDate();
 
 const pipeline = toRef(props, 'pipeline');
-const { since, duration, durationElapsed, message, shortMessage, prettyRef, created } = usePipeline(pipeline);
+const { since, duration, durationElapsed, message, shortMessage, prettyRef, created, manualParams } =
+  usePipeline(pipeline);
 
 const pipelineEventTitle = computed(() => {
   switch (pipeline.value.event) {
