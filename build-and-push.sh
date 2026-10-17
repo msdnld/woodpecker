@@ -10,6 +10,7 @@
 #   TAG=v3-dispatch ./build-and-push.sh # custom tag
 #   PLATFORM=linux/arm64 ./build-and-push.sh
 #
+# VERSION defaults to the nearest git tag (without the "v"), e.g. 3.19.3.
 # Override any of: REGISTRY, IMAGE, TAG, PLATFORM, VERSION, PUSH
 set -euo pipefail
 
@@ -22,7 +23,8 @@ PLATFORM="${PLATFORM:-linux/amd64}"
 PUSH="${PUSH:-true}"
 
 GIT_SHA="$(git rev-parse --short HEAD 2>/dev/null || echo unknown)"
-VERSION="${VERSION:-${TAG}-${GIT_SHA}}"
+GIT_TAG="$(git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//' || true)"
+VERSION="${VERSION:-${GIT_TAG:-${TAG}-${GIT_SHA}}}"
 
 REF="${REGISTRY}/${IMAGE}:${TAG}"
 REF_SHA="${REGISTRY}/${IMAGE}:${GIT_SHA}"
