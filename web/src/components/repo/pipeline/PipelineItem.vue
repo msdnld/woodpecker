@@ -23,23 +23,25 @@
         <img v-else class="w-6 rounded-md" :src="pipeline.author_avatar" />
       </div>
 
-      <div class="flex w-full min-w-0 items-center md:mx-4 md:w-auto">
-        <!-- eslint-disable-next-line @intlify/vue-i18n/no-raw-text -->
-        <span class="md:display-unset text-wp-text-alt-100 hidden">#{{ pipeline.number }}</span>
-        <!-- eslint-disable-next-line @intlify/vue-i18n/no-raw-text -->
-        <span class="md:display-unset text-wp-text-alt-100 mx-2 hidden">-</span>
-        <RenderMarkdown
-          class="text-wp-text-100 overflow-hidden text-ellipsis whitespace-nowrap underline md:no-underline"
-          :title="message"
-          :content="shortMessage"
-          inline
-        />
+      <div class="flex w-full min-w-0 flex-col justify-center md:mx-4 md:w-auto">
+        <div class="flex min-w-0 items-center">
+          <!-- eslint-disable-next-line @intlify/vue-i18n/no-raw-text -->
+          <span class="md:display-unset text-wp-text-alt-100 hidden">#{{ pipeline.number }}</span>
+          <!-- eslint-disable-next-line @intlify/vue-i18n/no-raw-text -->
+          <span class="md:display-unset text-wp-text-alt-100 mx-2 hidden">-</span>
+          <RenderMarkdown
+            class="text-wp-text-100 overflow-hidden text-ellipsis whitespace-nowrap underline md:no-underline"
+            :title="message"
+            :content="shortMessage"
+            inline
+          />
+        </div>
         <span
           v-if="manualParams"
-          class="text-wp-text-alt-100 ml-1 overflow-hidden text-xs text-ellipsis whitespace-nowrap"
+          class="text-wp-text-alt-100 overflow-hidden text-xs text-ellipsis whitespace-nowrap"
           :title="manualParams"
         >
-          {{ `(${manualParams})` }}
+          {{ manualParams }}
         </span>
       </div>
 
