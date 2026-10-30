@@ -62,7 +62,7 @@ func dummyStep(name string) *backend_types.Step {
 		Type:        backend_types.StepTypeCommands,
 		OnSuccess:   true,
 		OnFailure:   false,
-		Environment: map[string]string{},
+		Environment: make(map[string]string),
 		Commands:    []string{"echo hello"},
 	}
 }
@@ -331,6 +331,38 @@ func TestCompleteStep(t *testing.T) {
 		var oomErr *pipeline_errors.OomError
 		assert.True(t, errors.As(err, &oomErr))
 		assert.True(t, ws.OOMKilled)
+		assert.Equal(t, err.Error(), ws.Error.Error(), "OOM kill must be reported through the state too")
+	})
+
+	t.Run("OOMKilledExitZero", func(t *testing.T) {
+		t.Parallel()
+		engine := mocks.NewMockBackend(t)
+		engine.On("WaitStep", mock.Anything, mock.Anything, mock.Anything).
+			Return(&backend_types.State{Exited: true, OOMKilled: true, ExitCode: 0}, nil)
+		engine.On("DestroyStep", mock.Anything, mock.Anything, mock.Anything).Return(nil)
+		r := New(&backend_types.Config{}, engine, WithTracer(newTestTracer(t)), WithLogger(newTestLogger(t)))
+
+		ws, err := r.completeStep(t.Context(), dummyStep("s1"), func() {}, time.Now().Unix())
+
+		var oomErr *pipeline_errors.OomError
+		assert.True(t, errors.As(err, &oomErr))
+		assert.Equal(t, 0, ws.ExitCode)
+		assert.Equal(t, err.Error(), ws.Error.Error(), "OOM kill must be reported through the state too")
+	})
+
+	t.Run("StateErrorExitZero", func(t *testing.T) {
+		t.Parallel()
+		stateErr := errors.New("backend reported failure")
+		engine := mocks.NewMockBackend(t)
+		engine.On("WaitStep", mock.Anything, mock.Anything, mock.Anything).
+			Return(&backend_types.State{Exited: true, ExitCode: 0, Error: stateErr}, nil)
+		engine.On("DestroyStep", mock.Anything, mock.Anything, mock.Anything).Return(nil)
+		r := New(&backend_types.Config{}, engine, WithTracer(newTestTracer(t)), WithLogger(newTestLogger(t)))
+
+		ws, err := r.completeStep(t.Context(), dummyStep("s1"), func() {}, time.Now().Unix())
+
+		assert.ErrorIs(t, err, stateErr, "state error must fail the step for the runtime too")
+		assert.Equal(t, stateErr.Error(), ws.Error.Error())
 	})
 
 	t.Run("ContextCanceledNilState", func(t *testing.T) {
@@ -444,7 +476,7 @@ func TestExecuteStep(t *testing.T) {
 		r := newDummyRuntime(t, tracer)
 		step := &backend_types.Step{
 			Name: "skip-me", UUID: "skip-uuid",
-			Type: backend_types.StepTypeCommands, Environment: map[string]string{},
+			Type: backend_types.StepTypeCommands, Environment: make(map[string]string),
 			OnSuccess: false, OnFailure: true,
 		}
 

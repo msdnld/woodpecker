@@ -19,6 +19,7 @@ import type {
   Secret,
   User,
   WorkflowMeta,
+  WorkflowInfo,
 } from './types';
 
 export const DEFAULT_FORGE_ID = 1;
@@ -37,6 +38,8 @@ interface PipelineOptions {
   // inputs holds typed workflow_dispatch inputs, validated server-side against
   // the selected workflow's `inputs:` schema and injected as CI_INPUT_* env vars.
   inputs?: Record<string, unknown>;
+  // only run this workflow and its hard dependencies
+  workflow?: string;
 }
 
 interface DeploymentOptions {
@@ -100,6 +103,11 @@ export default class WoodpeckerClient extends ApiClient {
     return this._post(`/api/repos/${repoId}/repair`);
   }
 
+  async getRepoWorkflows(repoId: number, branch: string): Promise<WorkflowInfo[]> {
+    const query = encodeQueryString({ branch });
+    return this._get(`/api/repos/${repoId}/workflows?${query}`) as Promise<WorkflowInfo[]>;
+  }
+
   async createPipeline(repoId: number, options: PipelineOptions): Promise<Pipeline | string> {
     return this._post(`/api/repos/${repoId}/pipelines`, options) as Promise<Pipeline | string>;
   }
@@ -108,7 +116,7 @@ export default class WoodpeckerClient extends ApiClient {
   // manual run / workflow_dispatch UI.
   async getWorkflows(repoId: number, ref?: string): Promise<WorkflowMeta[]> {
     const query = encodeQueryString({ ref });
-    return this._get(`/api/repos/${repoId}/workflows?${query}`) as Promise<WorkflowMeta[]>;
+    return this._get(`/api/repos/${repoId}/workflows/dispatchable?${query}`) as Promise<WorkflowMeta[]>;
   }
 
   // Deploy triggers a deployment for an existing pipeline using the
@@ -270,6 +278,10 @@ export default class WoodpeckerClient extends ApiClient {
 
   async getOrg(orgId: number): Promise<Org> {
     return this._get(`/api/orgs/${orgId}`) as Promise<Org>;
+  }
+
+  async updateOrg(orgId: number, org: Partial<Org>): Promise<Org> {
+    return this._patch(`/api/orgs/${orgId}`, org) as Promise<Org>;
   }
 
   async lookupOrg(name: string): Promise<Org> {

@@ -91,7 +91,7 @@ dispatch the chosen workflow or error, never silently run nothing).
 ### List dispatchable workflows
 
 ```
-GET /api/repos/{repo_id}/workflows?ref={ref}
+GET /api/repos/{repo_id}/workflows/dispatchable?ref={ref}
 ```
 
 - Auth: must have push permission on the repo.
@@ -200,7 +200,7 @@ variable at all.
 |-------------------------------------------|---------------------------------------------------|
 | Input parsing, validation, coercion, filter | `server/pipeline/workflow_dispatch.go`           |
 | List endpoint + `WorkflowMeta`            | `server/api/workflow_dispatch.go`                 |
-| Route registration                        | `server/router/api.go` (`GET /workflows`)         |
+| Route registration                        | `server/router/api.go` (`GET /workflows/dispatchable`)         |
 | Request fields (`workflows`, `inputs`)    | `server/model/pipeline.go` (`PipelineOptions`)    |
 | Transient pipeline fields                 | `server/model/pipeline.go` (`Pipeline`)           |
 | Guarded apply on create                   | `server/pipeline/create.go`                       |

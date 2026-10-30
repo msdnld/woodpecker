@@ -48,7 +48,7 @@ type WorkflowMeta struct {
 //
 //	@Summary		List workflows available for manual dispatch
 //	@Description	Returns the workflow files configured on the given ref, for the manual run / workflow_dispatch UI.
-//	@Router			/repos/{repo_id}/workflows [get]
+//	@Router			/repos/{repo_id}/workflows/dispatchable [get]
 //	@Produce		json
 //	@Success		200	{array}	WorkflowMeta
 //	@Tags			Pipelines
