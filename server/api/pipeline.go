@@ -105,8 +105,7 @@ func createTmpPipeline(event model.WebhookEvent, commit *model.Commit, user *mod
 		AdditionalVariables: opts.Variables,
 		SelectedWorkflow:    opts.Workflow,
 
-		WorkflowDispatchFilter: opts.Workflows,
-		DispatchInputs:         opts.Inputs,
+		DispatchInputs: opts.Inputs,
 
 		Author: user.Login,
 		Email:  user.Email,
@@ -118,7 +117,7 @@ func createTmpPipeline(event model.WebhookEvent, commit *model.Commit, user *mod
 		pl.Message = "MANUAL: " + opts.Message + " @ " + opts.Branch
 	}
 
-	if len(opts.Workflows) > 0 {
+	if opts.Workflow != "" {
 		pl.Message = manualPipelineTitle(opts)
 	}
 
@@ -126,17 +125,12 @@ func createTmpPipeline(event model.WebhookEvent, commit *model.Commit, user *mod
 }
 
 // manualPipelineTitle names a workflow_dispatch run after the selected
-// workflow(s), optionally followed by the user supplied message.
+// workflow, optionally followed by the user supplied message.
 func manualPipelineTitle(opts *model.PipelineOptions) string {
-	names := make([]string, 0, len(opts.Workflows))
-	for _, w := range opts.Workflows {
-		names = append(names, pipeline.DispatchWorkflowName(w))
-	}
-	title := strings.Join(names, ", ")
 	if opts.Message != "" {
-		title += ": " + opts.Message
+		return opts.Workflow + ": " + opts.Message
 	}
-	return title
+	return opts.Workflow
 }
 
 // GetRepoWorkflows

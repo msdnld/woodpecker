@@ -12,22 +12,22 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// This file implements the manual "workflow dispatch" feature (GitHub-Actions
-// style workflow selection). It is intentionally kept in its own file so the
-// fork stays easy to rebase against upstream: the only change to existing code
-// is a single guarded call to filterDispatchWorkflows in create.go.
+// This file implements typed workflow_dispatch inputs on top of upstream's
+// workflow selection. It is intentionally kept in its own file so the fork stays
+// easy to rebase against upstream.
 package pipeline
 
 import (
 	"fmt"
 	"maps"
-	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
 
+	"github.com/rs/zerolog/log"
 	"go.yaml.in/yaml/v3"
 
+	"go.woodpecker-ci.org/woodpecker/v3/pipeline/frontend/builder"
 	forge_types "go.woodpecker-ci.org/woodpecker/v3/server/forge/types"
 	"go.woodpecker-ci.org/woodpecker/v3/server/model"
 )
@@ -49,16 +49,8 @@ const (
 	DispatchInputEnvPrefix = "CI_INPUT_"
 )
 
-// InputSpec mirrors a single GitHub-Actions style workflow_dispatch input
-// declaration parsed from a workflow file's top-level `inputs:` block.
-type InputSpec struct {
-	Name        string   `json:"name"        yaml:"name"`
-	Description string   `json:"description,omitempty" yaml:"description"`
-	Type        string   `json:"type,omitempty"        yaml:"type"` // string|number|boolean|choice
-	Required    bool     `json:"required,omitempty"    yaml:"required"`
-	Default     any      `json:"default,omitempty"     yaml:"default"`
-	Options     []string `json:"options,omitempty"     yaml:"options"`
-}
+// InputSpec is the input declaration shared with the workflow list API.
+type InputSpec = model.InputSpec
 
 // ParseWorkflowInputs extracts the ordered `inputs:` declarations from a
 // workflow file. Order is preserved (mirrors GitHub). Two shapes are accepted:
@@ -142,19 +134,28 @@ func normalizeInputSpec(spec *InputSpec) error {
 
 // applyDispatchInputs validates the user-submitted inputs against the selected
 // workflow's `inputs:` schema and injects them as CI_INPUT_* env vars (which
-// flow into every step of the run via AdditionalVariables). Inputs require
-// exactly one selected workflow, since the schema is per workflow file.
+// flow into every step of the run via AdditionalVariables). Inputs require a
+// selected workflow, since the schema is per workflow file.
 func applyDispatchInputs(pipeline *model.Pipeline, configs []*forge_types.FileMeta) error {
-	if len(configs) != 1 {
-		return &ErrBadRequest{Msg: "inputs can only be used when dispatching exactly one workflow"}
+	if pipeline.SelectedWorkflow == "" {
+		return &ErrBadRequest{Msg: "inputs can only be used when dispatching a selected workflow"}
 	}
 
-	specs, err := ParseWorkflowInputs(configs[0].Data)
+	selected := builder.SanitizePath(pipeline.SelectedWorkflow)
+	idx := slices.IndexFunc(configs, func(f *forge_types.FileMeta) bool {
+		return builder.SanitizePath(f.Name) == selected
+	})
+	if idx < 0 {
+		return &ErrBadRequest{Msg: fmt.Sprintf("workflow %q does not exist on the selected ref", pipeline.SelectedWorkflow)}
+	}
+	config := configs[idx]
+
+	specs, err := ParseWorkflowInputs(config.Data)
 	if err != nil {
-		return &ErrBadRequest{Msg: fmt.Sprintf("could not parse inputs of %s: %v", configs[0].Name, err)}
+		return &ErrBadRequest{Msg: fmt.Sprintf("could not parse inputs of %s: %v", config.Name, err)}
 	}
 	if len(specs) == 0 {
-		return &ErrBadRequest{Msg: fmt.Sprintf("workflow %s does not declare any inputs", configs[0].Name)}
+		return &ErrBadRequest{Msg: fmt.Sprintf("workflow %s does not declare any inputs", config.Name)}
 	}
 
 	env, err := validateDispatchInputs(specs, pipeline.DispatchInputs)
@@ -167,6 +168,24 @@ func applyDispatchInputs(pipeline *model.Pipeline, configs []*forge_types.FileMe
 	}
 	maps.Copy(pipeline.AdditionalVariables, env)
 	return nil
+}
+
+// attachDispatchInputs fills the declared inputs of listed workflows. A malformed
+// inputs block does not hide the workflow; it is listed without inputs.
+func attachDispatchInputs(workflows []*model.WorkflowInfo, configs []*forge_types.FileMeta) {
+	for _, config := range configs {
+		name := builder.SanitizePath(config.Name)
+		idx := slices.IndexFunc(workflows, func(w *model.WorkflowInfo) bool { return w.Name == name })
+		if idx < 0 {
+			continue
+		}
+		inputs, err := ParseWorkflowInputs(config.Data)
+		if err != nil {
+			log.Warn().Err(err).Str("workflow", config.Name).Msg("could not parse workflow inputs")
+			continue
+		}
+		workflows[idx].Inputs = inputs
+	}
 }
 
 // validateDispatchInputs checks submitted values against the input specs,
@@ -255,36 +274,4 @@ func coerceInput(spec InputSpec, raw any) (string, error) {
 	default:
 		return "", fmt.Errorf("input %q has unsupported type %q", spec.Name, spec.Type)
 	}
-}
-
-// DispatchWorkflowName returns the canonical short selector for a workflow
-// config file: its base name without extension (".woodpecker/deploy.yaml" ->
-// "deploy"). Shared with the API layer so the list endpoint and the filter
-// agree on naming.
-func DispatchWorkflowName(fileName string) string {
-	base := filepath.Base(fileName)
-	return strings.TrimSuffix(base, filepath.Ext(base))
-}
-
-// filterDispatchWorkflows keeps only the config files selected by a manual
-// workflow_dispatch run. A selector matches a file when it equals the full
-// config file name, its base name, or its base name without extension.
-//
-// It returns ErrBadRequest if any selector matches no file, mirroring GitHub's
-// behaviour of dispatching exactly the chosen workflow(s) rather than silently
-// running nothing.
-func filterDispatchWorkflows(files []*forge_types.FileMeta, selectors []string) ([]*forge_types.FileMeta, error) {
-	result := make([]*forge_types.FileMeta, 0, len(selectors))
-	for _, sel := range selectors {
-		idx := slices.IndexFunc(files, func(f *forge_types.FileMeta) bool {
-			return f.Name == sel || filepath.Base(f.Name) == sel || DispatchWorkflowName(f.Name) == sel
-		})
-		if idx < 0 {
-			return nil, &ErrBadRequest{Msg: fmt.Sprintf("workflow %q does not exist on the selected ref", sel)}
-		}
-		if !slices.Contains(result, files[idx]) {
-			result = append(result, files[idx])
-		}
-	}
-	return result, nil
 }

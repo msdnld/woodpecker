@@ -107,5 +107,6 @@ func ListWorkflows(ctx context.Context, _forge forge.Forge, _store store.Store, 
 		seen[item.Workflow.Name] = true
 		workflows = append(workflows, &model.WorkflowInfo{Name: item.Workflow.Name, DependsOn: item.DependsOn.Names()})
 	}
+	attachDispatchInputs(workflows, forgeYamlConfigs)
 	return workflows, nil
 }

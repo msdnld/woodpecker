@@ -18,7 +18,6 @@ import type {
   RepoSettings,
   Secret,
   User,
-  WorkflowMeta,
   WorkflowInfo,
 } from './types';
 
@@ -32,9 +31,6 @@ interface RepoListOptions {
 interface PipelineOptions {
   branch: string;
   variables: Record<string, string>;
-  // workflows optionally restricts a manual run to the given workflow file(s)
-  // (workflow_dispatch). Omitted/empty means "all workflows matching the event".
-  workflows?: string[];
   // inputs holds typed workflow_dispatch inputs, validated server-side against
   // the selected workflow's `inputs:` schema and injected as CI_INPUT_* env vars.
   inputs?: Record<string, unknown>;
@@ -110,13 +106,6 @@ export default class WoodpeckerClient extends ApiClient {
 
   async createPipeline(repoId: number, options: PipelineOptions): Promise<Pipeline | string> {
     return this._post(`/api/repos/${repoId}/pipelines`, options) as Promise<Pipeline | string>;
-  }
-
-  // getWorkflows lists the workflow files configured on the given ref, for the
-  // manual run / workflow_dispatch UI.
-  async getWorkflows(repoId: number, ref?: string): Promise<WorkflowMeta[]> {
-    const query = encodeQueryString({ ref });
-    return this._get(`/api/repos/${repoId}/workflows/dispatchable?${query}`) as Promise<WorkflowMeta[]>;
   }
 
   // Deploy triggers a deployment for an existing pipeline using the

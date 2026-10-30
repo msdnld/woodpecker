@@ -1,4 +1,5 @@
 import type { WebhookEvents } from './webhook';
+import type { WorkflowInput } from './workflow';
 
 export interface PipelineError<D = unknown> {
   type: string;
@@ -137,6 +138,7 @@ export interface PipelineWorkflow {
 export interface WorkflowInfo {
   name: string;
   depends_on?: string[];
+  inputs?: WorkflowInput[];
 }
 
 export interface PipelineStep {

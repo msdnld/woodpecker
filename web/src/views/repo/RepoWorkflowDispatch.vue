@@ -83,7 +83,7 @@ import useApiClient from '~/compositions/useApiClient';
 import { requiredInject } from '~/compositions/useInjectProvide';
 import { usePaginate } from '~/compositions/usePaginate';
 import { useWPTitle } from '~/compositions/useWPTitle';
-import type { WorkflowInput, WorkflowMeta } from '~/lib/api/types';
+import type { WorkflowInfo, WorkflowInput } from '~/lib/api/types';
 
 const apiClient = useApiClient();
 const notifications = useNotification();
@@ -102,16 +102,16 @@ const payload = ref<{ branch: string; workflow: string; variables: Record<string
   variables: {},
 });
 
-const workflows = ref<WorkflowMeta[]>([]);
+const workflows = ref<WorkflowInfo[]>([]);
 const inputValues = ref<Record<string, string | number | boolean>>({});
 
 const workflowOptions = computed<SelectOption[]>(() => [
   { text: i18n.t('repo.workflow_dispatch.all_workflows'), value: '' },
-  ...workflows.value.map((w) => ({ text: w.name, value: w.file })),
+  ...workflows.value.map((w) => ({ text: w.name, value: w.name })),
 ]);
 
 const selectedInputs = computed<WorkflowInput[]>(
-  () => workflows.value.find((w) => w.file === payload.value.workflow)?.inputs ?? [],
+  () => workflows.value.find((w) => w.name === payload.value.workflow)?.inputs ?? [],
 );
 
 const isVariablesValid = ref(true);
@@ -166,9 +166,9 @@ function resetInputs() {
 watch(() => payload.value.workflow, resetInputs);
 
 async function loadWorkflows() {
-  workflows.value = await apiClient.getWorkflows(repo.value.id, payload.value.branch);
+  workflows.value = await apiClient.getRepoWorkflows(repo.value.id, payload.value.branch);
   // reset selection if the previously chosen workflow no longer exists on this branch
-  if (!workflows.value.some((w) => w.file === payload.value.workflow)) {
+  if (!workflows.value.some((w) => w.name === payload.value.workflow)) {
     payload.value.workflow = '';
   }
   resetInputs();
@@ -196,7 +196,7 @@ async function triggerWorkflowDispatch() {
   const pipeline = await apiClient.createPipeline(repo.value.id, {
     branch: payload.value.branch,
     variables: payload.value.variables,
-    workflows: payload.value.workflow ? [payload.value.workflow] : undefined,
+    workflow: payload.value.workflow || undefined,
     inputs: selectedInputs.value.length > 0 ? { ...inputValues.value } : undefined,
   });
 

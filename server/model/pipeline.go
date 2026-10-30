@@ -70,10 +70,6 @@ type Pipeline struct {
 	Sender    string `json:"sender"       xorm:"sender"` // uses reported user for webhooks and name of cron for cron pipelines
 	Email     string `json:"author_email" xorm:"varchar(500) email"`
 
-	// WorkflowDispatchFilter restricts a manual run to the selected workflow
-	// file(s) (matched by config file name). Transient: never persisted, set
-	// only for manual workflow_dispatch triggers. See server/pipeline/workflow_dispatch.go.
-	WorkflowDispatchFilter []string `json:"-" xorm:"-"`
 	// DispatchInputs holds the typed inputs submitted for a workflow_dispatch
 	// run, validated against the selected workflow's `inputs:` schema and
 	// injected as CI_INPUT_* env vars. Transient: never persisted.
@@ -138,10 +134,6 @@ type PipelineOptions struct {
 	Message   string            `json:"message"`
 	Branch    string            `json:"branch"`
 	Variables map[string]string `json:"variables"`
-	// Workflows optionally restricts a manual run to the given workflow file(s),
-	// mirroring GitHub's workflow_dispatch. Empty means "all workflows matching
-	// the event" (the original behaviour). Each entry matches a config file name.
-	Workflows []string `json:"workflows,omitempty"`
 	// Inputs holds the typed workflow_dispatch inputs, validated against the
 	// selected workflow's `inputs:` schema and injected as CI_INPUT_* env vars.
 	Inputs   map[string]any `json:"inputs,omitempty"`
@@ -150,8 +142,9 @@ type PipelineOptions struct {
 
 // WorkflowInfo describes a workflow a pipeline config would run, without its compiled config.
 type WorkflowInfo struct {
-	Name      string   `json:"name"`
-	DependsOn []string `json:"depends_on,omitempty"`
+	Name      string      `json:"name"`
+	DependsOn []string    `json:"depends_on,omitempty"`
+	Inputs    []InputSpec `json:"inputs,omitempty"`
 } //	@name	WorkflowInfo
 
 type Release struct {

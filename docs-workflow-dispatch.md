@@ -1,13 +1,13 @@
 # Manual Workflow Dispatch — Contract
 
-GitHub-Actions style manual dispatch for this fork: pick one (or several) workflow
-file(s) and run them on demand with typed, validated inputs. Inputs are injected
+GitHub-Actions style manual dispatch for this fork: pick one workflow and run it
+(plus its hard dependencies) on demand with typed, validated inputs. Inputs are injected
 into every step as `CI_INPUT_<NAME>` environment variables.
 
-The feature is intentionally isolated so the fork stays easy to rebase against
-upstream. The only edits to existing code are a single route registration
-(`server/router/api.go`) and one guarded call in `server/pipeline/create.go`. All
-the rest lives in dedicated `workflow_dispatch.go` files.
+Workflow selection and listing come from upstream (`workflow` on pipeline create,
+`GET /repos/{repo_id}/workflows`). This fork only adds typed inputs on top. The
+edits to upstream code are small; the rest lives in dedicated
+`workflow_dispatch.go` files.
 
 ---
 
@@ -75,14 +75,12 @@ Notes:
 
 ## 2. Workflow selector naming
 
-A workflow is selected by name. A selector matches a config file when it equals:
-- the full config file name as stored in the forge (e.g. `.woodpecker/deploy.yaml`), or
-- its base name (e.g. `deploy.yaml`), or
-- its base name without extension — the **canonical short name** (e.g. `deploy`).
+A workflow is selected by name: its config file name without directory, extension
+or leading dot (`.woodpecker/deploy.yaml` -> `deploy`). This is upstream's workflow
+name, as returned by the list endpoint.
 
-The list endpoint returns this short name as `name` and the full path as `file`.
-If a selector matches no file on the ref, the request fails (mirrors GitHub:
-dispatch the chosen workflow or error, never silently run nothing).
+If the name matches no file on the ref, or the workflow does not match its `when`
+conditions, the run fails with a pipeline error instead of silently running nothing.
 
 ---
 
@@ -91,22 +89,22 @@ dispatch the chosen workflow or error, never silently run nothing).
 ### List dispatchable workflows
 
 ```
-GET /api/repos/{repo_id}/workflows/dispatchable?ref={ref}
+GET /api/repos/{repo_id}/workflows?branch={branch}
 ```
 
 - Auth: must have push permission on the repo.
-- `ref` (query, optional): branch to read workflows from. Defaults to the repo
+- `branch` (query, optional): branch to read workflows from. Defaults to the repo
   default branch.
-- Resolves workflows exactly as a manual run would for that ref (same config
-  service, `EventManual`).
+- Lists the workflows that would run on the manual event. `evaluate` clauses are
+  ignored, since inputs are not known yet.
 
-Response `200` — array of `WorkflowMeta`:
+Response `200` - array of `WorkflowInfo`:
 
 ```jsonc
 [
   {
-    "name": "deploy",                       // short selector name
-    "file": ".woodpecker/deploy.yaml",      // full config file name
+    "name": "deploy",                       // workflow name
+    "depends_on": ["build"],                // omitted if none
     "inputs": [                              // declared inputs, in file order (omitted if none)
       { "name": "environment", "type": "choice", "required": true, "options": ["staging", "production"] },
       { "name": "replicas", "type": "number", "default": 2 },
@@ -130,7 +128,7 @@ Body (`PipelineOptions`):
 {
   "branch": "main",
   "variables": { "FOO": "bar" },     // existing: extra pipeline variables
-  "workflows": ["deploy"],            // optional: restrict run to these workflow selectors
+  "workflow": "deploy",               // optional: run this workflow and its hard dependencies
   "inputs": {                          // optional: typed workflow_dispatch inputs
     "environment": "production",
     "replicas": 3,
@@ -140,14 +138,13 @@ Body (`PipelineOptions`):
 ```
 
 Field semantics:
-- `workflows` — empty/omitted means "all workflows matching the event" (original
-  behaviour). Each entry is a selector (see §2).
-- `inputs` — typed values keyed by input name. **Inputs require exactly one
-  selected workflow**, since the schema is per workflow file. Submitting inputs
-  with zero or multiple selected workflows is an error.
+- `workflow` - empty/omitted means "all workflows matching the event". Upstream field.
+- `inputs` - typed values keyed by input name. **Inputs require a selected
+  workflow**, since the schema is per workflow file. Submitting inputs without
+  one is an error.
 
-Both fields are transient request-only data — they are never persisted on the
-pipeline record.
+`inputs` is transient request-only data, persisted only as `CI_INPUT_*` variables.
+`workflow` is stored on the pipeline, so a restart runs the same selection.
 
 ---
 
@@ -158,7 +155,7 @@ When `inputs` is present, each input is validated against the selected workflow'
 pipeline row is deleted and a `400 Bad Request` is returned.
 
 Validation rules:
-- **Exactly one workflow** must be selected, else: `inputs can only be used when dispatching exactly one workflow`.
+- **A workflow** must be selected, else: `inputs can only be used when dispatching a selected workflow`.
 - The workflow **must declare inputs**, else: `workflow <file> does not declare any inputs`.
 - **Required**: a required input with no value and no default → `input "<name>" is required`.
 - **Defaults**: missing/empty value falls back to the declared `default`.
@@ -174,7 +171,7 @@ Validation rules:
 ## 5. Injection into the run
 
 Each validated input becomes an environment variable available to **every step**
-of the dispatched run (via the pipeline's `AdditionalVariables`):
+of the dispatched run, including hard dependencies (via the pipeline's `AdditionalVariables`):
 
 ```
 CI_INPUT_<UPPERCASE_NAME> = <canonical string value>
@@ -198,11 +195,11 @@ variable at all.
 
 | Concern                                   | Location                                          |
 |-------------------------------------------|---------------------------------------------------|
-| Input parsing, validation, coercion, filter | `server/pipeline/workflow_dispatch.go`           |
-| List endpoint + `WorkflowMeta`            | `server/api/workflow_dispatch.go`                 |
-| Route registration                        | `server/router/api.go` (`GET /workflows/dispatchable`)         |
-| Request fields (`workflows`, `inputs`)    | `server/model/pipeline.go` (`PipelineOptions`)    |
-| Transient pipeline fields                 | `server/model/pipeline.go` (`Pipeline`)           |
+| Input parsing, validation, coercion       | `server/pipeline/workflow_dispatch.go`            |
+| `InputSpec`                               | `server/model/workflow_dispatch.go`               |
+| Inputs in the workflow list               | `server/pipeline/workflows.go` (`ListWorkflows`)  |
+| Request field (`inputs`)                  | `server/model/pipeline.go` (`PipelineOptions`)    |
+| Transient pipeline field                  | `server/model/pipeline.go` (`Pipeline`)           |
 | Guarded apply on create                   | `server/pipeline/create.go`                       |
 | JSON schema (`inputs` definition)         | `pipeline/frontend/yaml/linter/schema/schema.json`|
 | Frontend types                            | `web/src/lib/api/types/workflow.ts`               |

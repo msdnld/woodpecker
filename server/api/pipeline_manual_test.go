@@ -33,11 +33,11 @@ func TestCreateTmpPipelineMessage(t *testing.T) {
 
 	t.Run("selected workflow names the run", func(t *testing.T) {
 		pl := createTmpPipeline(model.EventManual, commit, user, &model.PipelineOptions{
-			Branch:    "main",
-			Workflows: []string{".woodpecker/deploy.yaml", "lint"},
-			Inputs:    map[string]any{"version": "1.2"},
+			Branch:   "main",
+			Workflow: "deploy",
+			Inputs:   map[string]any{"version": "1.2"},
 		})
-		assert.Equal(t, "deploy, lint", pl.Message)
+		assert.Equal(t, "deploy", pl.Message)
 	})
 
 	t.Run("custom message", func(t *testing.T) {
@@ -50,9 +50,9 @@ func TestCreateTmpPipelineMessage(t *testing.T) {
 
 	t.Run("workflow with custom message", func(t *testing.T) {
 		pl := createTmpPipeline(model.EventManual, commit, user, &model.PipelineOptions{
-			Branch:    "main",
-			Message:   "hotfix",
-			Workflows: []string{"deploy"},
+			Branch:   "main",
+			Message:  "hotfix",
+			Workflow: "deploy",
 		})
 		assert.Equal(t, "deploy: hotfix", pl.Message)
 	})
