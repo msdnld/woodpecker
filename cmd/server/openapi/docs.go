@@ -3076,6 +3076,12 @@ const docTemplate = `{
                         "description": "filter pipelines by status",
                         "name": "status",
                         "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "filter pipelines by the workflow selected for a manual run",
+                        "name": "workflow",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -5070,6 +5076,31 @@ const docTemplate = `{
                 }
             }
         },
+        "InputSpec": {
+            "type": "object",
+            "properties": {
+                "default": {},
+                "description": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "options": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "required": {
+                    "type": "boolean"
+                },
+                "type": {
+                    "description": "string|number|boolean|choice",
+                    "type": "string"
+                }
+            }
+        },
         "LogEntry": {
             "type": "object",
             "properties": {
@@ -5342,6 +5373,11 @@ const docTemplate = `{
             "properties": {
                 "branch": {
                     "type": "string"
+                },
+                "inputs": {
+                    "description": "Inputs holds the typed workflow_dispatch inputs, validated against the\nselected workflow's ` + "`" + `inputs:` + "`" + ` schema and injected as CI_INPUT_* env vars.",
+                    "type": "object",
+                    "additionalProperties": {}
                 },
                 "message": {
                     "type": "string"
@@ -6081,6 +6117,12 @@ const docTemplate = `{
                     "type": "array",
                     "items": {
                         "type": "string"
+                    }
+                },
+                "inputs": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/InputSpec"
                     }
                 },
                 "name": {

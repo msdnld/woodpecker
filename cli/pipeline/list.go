@@ -46,6 +46,10 @@ func buildPipelineListCmd() *cli.Command {
 				Name:  "status",
 				Usage: "status filter",
 			},
+			&cli.StringFlag{
+				Name:  "workflow",
+				Usage: "workflow filter (manual runs started for this workflow)",
+			},
 			&cli.IntFlag{
 				Name:  "limit",
 				Usage: "limit the list size",
@@ -104,18 +108,20 @@ func pipelineList(c *cli.Command, client woodpecker.Client) ([]*woodpecker.Pipel
 	branch := c.String("branch")
 	event := c.String("event")
 	status := c.String("status")
+	workflow := c.String("workflow")
 	limit := c.Int("limit")
 
 	pipelines, err := shared_utils.Paginate(func(page int) ([]*woodpecker.Pipeline, error) {
 		return client.PipelineList(
 			repoID,
 			woodpecker.PipelineListOptions{
-				Page:   page,
-				Before: opt.Before,
-				After:  opt.After,
-				Branch: branch,
-				Events: []string{event},
-				Status: status,
+				Page:     page,
+				Before:   opt.Before,
+				After:    opt.After,
+				Branch:   branch,
+				Events:   []string{event},
+				Status:   status,
+				Workflow: workflow,
 			},
 		)
 	}, limit)

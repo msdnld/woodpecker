@@ -52,6 +52,7 @@ type PipelineListOptions struct {
 	Events      []string
 	RefContains string
 	Status      string
+	Workflow    string
 }
 
 type CronListOptions struct {
@@ -107,6 +108,9 @@ func (opt *PipelineListOptions) QueryEncode() string {
 	}
 	if opt.Status != "" {
 		query.Add("status", opt.Status)
+	}
+	if opt.Workflow != "" {
+		query.Add("workflow", opt.Workflow)
 	}
 	return query.Encode()
 }

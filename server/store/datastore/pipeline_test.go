@@ -201,6 +201,24 @@ func TestPipelineListFilter(t *testing.T) {
 	assert.Len(t, pipelines, 1)
 	assert.Equal(t, pipeline2.ID, pipelines[0].ID)
 	assert.Equal(t, model.StatusSuccess, pipelines[0].Status)
+
+	pipeline3 := &model.Pipeline{
+		RepoID:           repo.ID,
+		Status:           model.StatusSuccess,
+		Event:            model.EventManual,
+		Ref:              "refs/heads/main",
+		Branch:           "main",
+		SelectedWorkflow: "deploy",
+	}
+	err = store.CreatePipeline(pipeline3, []*model.Step{}...)
+	assert.NoError(t, err)
+
+	pipelines, err = store.GetPipelineList(&model.Repo{ID: 1}, nil, &model.PipelineFilter{
+		Workflow: "deploy",
+	})
+	assert.NoError(t, err)
+	assert.Len(t, pipelines, 1)
+	assert.Equal(t, pipeline3.ID, pipelines[0].ID)
 }
 
 func TestPipelineIncrement(t *testing.T) {

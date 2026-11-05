@@ -118,6 +118,7 @@ type PipelineFilter struct {
 	Events      []WebhookEvent
 	RefContains string
 	Status      StatusValue
+	Workflow    string
 }
 
 // IsMultiPipeline checks if step list contain more than one parent step.

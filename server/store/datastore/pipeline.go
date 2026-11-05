@@ -93,6 +93,10 @@ func (s storage) GetPipelineList(repo *model.Repo, p *model.ListOptionsWithAll, 
 		if f.RefContains != "" {
 			cond = cond.And(builder.Like{"ref", f.RefContains})
 		}
+
+		if f.Workflow != "" {
+			cond = cond.And(builder.Eq{"selected_workflow": f.Workflow})
+		}
 	}
 
 	return pipelines, s.paginate(p).Where(cond).
