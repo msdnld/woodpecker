@@ -7,20 +7,18 @@
 # Usage:
 #   ./build-and-push.sh                 # build + push doc.msdci.nl/woodpecker-server:custom (+ :<gitsha>)
 #   PUSH=false ./build-and-push.sh      # build locally only, do not push
-#   TAG=v3-dispatch ./build-and-push.sh # custom tag
 #   PLATFORM=linux/arm64 ./build-and-push.sh
-#   RELEASE=true ./build-and-push.sh    # also cut a fork release tag (see below)
-#   RELEASE=v3.20.1-fork.3 ./build-and-push.sh  # release with an explicit tag name
+#   TAG=v3.20.1-fork.1 ./build-and-push.sh
 #
-# VERSION defaults to git describe (without the "v"), e.g. 3.20.1-67-g555225f,
-# so the UI shows which fork commit is running. Update checks coerce it to 3.20.1.
+# TAG defaults to "custom": VERSION is then git describe (without the "v"),
+# e.g. 3.20.1-67-g555225f, so the UI shows which fork commit is running.
 #
-# RELEASE=true tags HEAD as v<upstream>-fork.<n>, where <upstream> is the
-# nearest upstream release tag and <n> the next free number (v3.20.1-fork.1,
-# v3.20.1-fork.2, ...). The image is built with that version, also tagged
-# <REGISTRY>/<IMAGE>:<release> and, once the push succeeded, the git tag is
-# pushed to origin. Requires a clean working tree.
-# Override any of: REGISTRY, IMAGE, TAG, PLATFORM, VERSION, PUSH, RELEASE
+# Any other TAG is a release: the image is tagged <REGISTRY>/<IMAGE>:<TAG>,
+# built with VERSION=<TAG without "v">, and after a successful push HEAD is
+# git-tagged <TAG> and that tag is pushed to origin. Requires a clean tree
+# and a tag name that does not exist yet. Update checks coerce
+# 3.20.1-fork.1 to 3.20.1, so no false "update available".
+# Override any of: REGISTRY, IMAGE, TAG, PLATFORM, VERSION, PUSH
 set -euo pipefail
 
 cd "$(dirname "$0")"
@@ -31,51 +29,28 @@ TAG="${TAG:-custom}"
 PLATFORM="${PLATFORM:-linux/amd64}"
 PUSH="${PUSH:-true}"
 
-RELEASE="${RELEASE:-false}"
-
 GIT_SHA="$(git rev-parse --short HEAD 2>/dev/null || echo unknown)"
-GIT_TAG="$(git describe --tags 2>/dev/null | sed 's/^v//' || true)"
+GIT_DESCRIBE="$(git describe --tags 2>/dev/null | sed 's/^v//' || true)"
 
-RELEASE_TAG=""
-if [ "${RELEASE}" != "false" ]; then
+if [ "${TAG}" != "custom" ]; then
   if [ -n "$(git status --porcelain)" ]; then
-    echo "!! working tree not clean, commit or stash before cutting a release" >&2
+    echo "!! working tree not clean, commit or stash before tagging ${TAG}" >&2
     exit 1
   fi
-  if [ "${RELEASE}" = "true" ]; then
-    UPSTREAM_TAG="$(git describe --tags --abbrev=0 --exclude='*-fork.*' 2>/dev/null || true)"
-    if [ -z "${UPSTREAM_TAG}" ]; then
-      echo "!! no upstream release tag reachable from HEAD" >&2
-      exit 1
-    fi
-    N=1
-    while git rev-parse -q --verify "refs/tags/${UPSTREAM_TAG}-fork.${N}" >/dev/null; do
-      N=$((N + 1))
-    done
-    RELEASE_TAG="${UPSTREAM_TAG}-fork.${N}"
-  else
-    RELEASE_TAG="${RELEASE}"
-    if git rev-parse -q --verify "refs/tags/${RELEASE_TAG}" >/dev/null; then
-      echo "!! tag ${RELEASE_TAG} already exists" >&2
-      exit 1
-    fi
+  if git rev-parse -q --verify "refs/tags/${TAG}" >/dev/null; then
+    echo "!! git tag ${TAG} already exists" >&2
+    exit 1
   fi
-  VERSION="${VERSION:-${RELEASE_TAG#v}}"
+  VERSION="${VERSION:-${TAG#v}}"
 fi
 
-VERSION="${VERSION:-${GIT_TAG:-${TAG}-${GIT_SHA}}}"
+VERSION="${VERSION:-${GIT_DESCRIBE:-${TAG}-${GIT_SHA}}}"
 
 REF="${REGISTRY}/${IMAGE}:${TAG}"
 REF_SHA="${REGISTRY}/${IMAGE}:${GIT_SHA}"
-TAG_ARGS=(-t "${REF}" -t "${REF_SHA}")
-if [ -n "${RELEASE_TAG}" ]; then
-  REF_RELEASE="${REGISTRY}/${IMAGE}:${RELEASE_TAG#v}"
-  TAG_ARGS+=(-t "${REF_RELEASE}")
-fi
 
 echo ">> building ${REF}"
 echo "   platform: ${PLATFORM}   version: ${VERSION}   push: ${PUSH}"
-[ -n "${RELEASE_TAG}" ] && echo "   release: ${RELEASE_TAG}"
 
 # buildx is required for --platform; create a builder once if missing
 if ! docker buildx inspect wp-builder >/dev/null 2>&1; then
@@ -96,14 +71,15 @@ docker buildx build \
   --platform "${PLATFORM}" \
   -f docker/Dockerfile.custom \
   --build-arg "VERSION=${VERSION}" \
-  "${TAG_ARGS[@]}" \
+  -t "${REF}" \
+  -t "${REF_SHA}" \
   "${OUTPUT_ARGS[@]}" \
   .
 
-if [ -n "${RELEASE_TAG}" ]; then
-  git tag -a "${RELEASE_TAG}" -m "Fork release ${RELEASE_TAG}"
+if [ "${TAG}" != "custom" ]; then
+  git tag -a "${TAG}" -m "Fork release ${TAG}"
   if [ "${PUSH}" = "true" ]; then
-    git push origin "refs/tags/${RELEASE_TAG}"
+    git push origin "refs/tags/${TAG}"
   fi
 fi
 
@@ -111,7 +87,7 @@ echo
 echo ">> done"
 echo "   ${REF}"
 echo "   ${REF_SHA}"
-[ -n "${RELEASE_TAG}" ] && echo "   ${REF_RELEASE}   (git tag ${RELEASE_TAG})"
+[ "${TAG}" != "custom" ] && echo "   git tag ${TAG} pushed to origin"
 if [ "${PUSH}" = "true" ]; then
   echo
   echo "   Next: point your compose at this tag and redeploy, e.g."
