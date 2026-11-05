@@ -10,7 +10,8 @@
 #   TAG=v3-dispatch ./build-and-push.sh # custom tag
 #   PLATFORM=linux/arm64 ./build-and-push.sh
 #
-# VERSION defaults to the nearest git tag (without the "v"), e.g. 3.19.3.
+# VERSION defaults to git describe (without the "v"), e.g. 3.20.1-67-g555225f,
+# so the UI shows which fork commit is running. Update checks coerce it to 3.20.1.
 # Override any of: REGISTRY, IMAGE, TAG, PLATFORM, VERSION, PUSH
 set -euo pipefail
 
@@ -23,7 +24,7 @@ PLATFORM="${PLATFORM:-linux/amd64}"
 PUSH="${PUSH:-true}"
 
 GIT_SHA="$(git rev-parse --short HEAD 2>/dev/null || echo unknown)"
-GIT_TAG="$(git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//' || true)"
+GIT_TAG="$(git describe --tags 2>/dev/null | sed 's/^v//' || true)"
 VERSION="${VERSION:-${GIT_TAG:-${TAG}-${GIT_SHA}}}"
 
 REF="${REGISTRY}/${IMAGE}:${TAG}"
