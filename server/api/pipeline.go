@@ -190,7 +190,7 @@ func GetRepoWorkflows(c *gin.Context) {
 //	@Param			event			query	string	false	"filter pipelines by webhook events (comma separated)"
 //	@Param			ref				query	string	false	"filter pipelines by strings contained in ref"
 //	@Param			status			query	string	false	"filter pipelines by status"
-//	@Param			workflow		query	string	false	"filter pipelines by the workflow selected for a manual run"
+//	@Param			workflow		query	string	false	"filter pipelines that ran this workflow or were dispatched for it"
 func GetPipelines(c *gin.Context) {
 	repo := session.Repo(c)
 

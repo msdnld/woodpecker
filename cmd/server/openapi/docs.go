@@ -3079,7 +3079,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "filter pipelines by the workflow selected for a manual run",
+                        "description": "filter pipelines that ran this workflow or were dispatched for it",
                         "name": "workflow",
                         "in": "query"
                     }

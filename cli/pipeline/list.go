@@ -48,7 +48,7 @@ func buildPipelineListCmd() *cli.Command {
 			},
 			&cli.StringFlag{
 				Name:  "workflow",
-				Usage: "workflow filter (manual runs started for this workflow)",
+				Usage: "workflow filter (pipelines that ran this workflow)",
 			},
 			&cli.IntFlag{
 				Name:  "limit",

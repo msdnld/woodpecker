@@ -133,7 +133,7 @@ func TestPipelineListFilter(t *testing.T) {
 		Name:     "test",
 	}
 
-	store, closer := newTestStore(t, new(model.Repo), new(model.Step), new(model.Pipeline))
+	store, closer := newTestStore(t, new(model.Repo), new(model.Step), new(model.Pipeline), new(model.Workflow))
 	defer closer()
 
 	assert.NoError(t, store.CreateRepo(repo))
@@ -219,6 +219,16 @@ func TestPipelineListFilter(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Len(t, pipelines, 1)
 	assert.Equal(t, pipeline3.ID, pipelines[0].ID)
+
+	assert.NoError(t, store.WorkflowsCreate([]*model.Workflow{{PipelineID: pipeline1.ID, PID: 1, Name: "deploy"}}))
+
+	pipelines, err = store.GetPipelineList(&model.Repo{ID: 1}, nil, &model.PipelineFilter{
+		Workflow: "deploy",
+	})
+	assert.NoError(t, err)
+	assert.Len(t, pipelines, 2)
+	assert.Equal(t, pipeline3.ID, pipelines[0].ID)
+	assert.Equal(t, pipeline1.ID, pipelines[1].ID)
 }
 
 func TestPipelineIncrement(t *testing.T) {

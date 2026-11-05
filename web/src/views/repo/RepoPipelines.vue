@@ -76,11 +76,17 @@ const workflowOptions = computed(() => {
   ];
 });
 
+// Numbers of pipelines the server returned for the active filter. Older runs
+// matched by workflow name only, so selected_workflow alone is not enough.
+const filteredNumbers = ref(new Set<number>());
+
 const shownPipelines = computed(() => {
   if (!workflowFilter.value) {
     return pipelines.value;
   }
-  return pipelines.value.filter((pipeline) => pipeline.selected_workflow === workflowFilter.value);
+  return pipelines.value.filter(
+    (pipeline) => pipeline.selected_workflow === workflowFilter.value || filteredNumbers.value.has(pipeline.number),
+  );
 });
 
 const emptyText = computed(() =>
@@ -103,7 +109,10 @@ async function loadFilteredPipelines(workflow: string, pageToLoad: number) {
   filteredLoading.value = true;
   try {
     const loaded = await apiClient.getPipelineList(repo.value.id, { page: pageToLoad, perPage, workflow });
-    loaded.forEach((pipeline) => pipelineStore.setPipeline(repo.value.id, pipeline));
+    loaded.forEach((pipeline) => {
+      pipelineStore.setPipeline(repo.value.id, pipeline);
+      filteredNumbers.value.add(pipeline.number);
+    });
     filteredHasMore.value = loaded.length >= perPage;
   } finally {
     filteredLoading.value = false;
@@ -125,6 +134,7 @@ watch(
   async (workflow) => {
     filteredPage.value = 1;
     filteredHasMore.value = false;
+    filteredNumbers.value = new Set<number>();
     if (workflow) {
       await loadFilteredPipelines(workflow, 1);
     }

@@ -95,7 +95,8 @@ func (s storage) GetPipelineList(repo *model.Repo, p *model.ListOptionsWithAll, 
 		}
 
 		if f.Workflow != "" {
-			cond = cond.And(builder.Eq{"selected_workflow": f.Workflow})
+			ranWorkflow := builder.Select("pipeline_id").From("workflows").Where(builder.Eq{"name": f.Workflow})
+			cond = cond.And(builder.Or(builder.Eq{"selected_workflow": f.Workflow}, builder.In("id", ranWorkflow)))
 		}
 	}
 
