@@ -13,7 +13,7 @@
       <Icon name="spinner" class="animate-spin" />
     </div>
     <Panel v-else-if="pipelines?.length === 0">
-      <span class="text-wp-text-100">{{ $t('repo.pipeline.no_pipelines') }}</span>
+      <span class="text-wp-text-100">{{ emptyText ?? $t('repo.pipeline.no_pipelines') }}</span>
     </Panel>
     <div v-if="hasMore && !loading" class="flex justify-center">
       <Button :text="$t('repo.pipeline.load_more')" @click="$emit('loadMore')" />
@@ -32,6 +32,7 @@ defineProps<{
   pipelines: Pipeline[] | undefined;
   loading?: boolean;
   hasMore?: boolean;
+  emptyText?: string;
 }>();
 
 defineEmits<{
